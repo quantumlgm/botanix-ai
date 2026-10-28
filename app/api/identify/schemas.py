@@ -1,9 +1,10 @@
-
 from pydantic import BaseModel, Field
 
 
-class PlantSpecies(BaseModel):    
-    scientific_name: str = Field(alias="scientificNameWithoutAuthor", default="Неизвестный вид")
+class PlantSpecies(BaseModel):
+    scientific_name: str = Field(
+        alias="scientificNameWithoutAuthor", default="Неизвестный вид"
+    )
     family: dict = Field(default_factory=dict)
     common_names: list[str] = Field(alias="commonNames", default_factory=list)
 

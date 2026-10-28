@@ -7,9 +7,7 @@ router = APIRouter(prefix="/plants", tags=["Plants"])
 
 
 @router.post(
-    "/identify", 
-    status_code=status.HTTP_201_CREATED,
-    summary="Identify your plant"
+    "/identify", status_code=status.HTTP_201_CREATED, summary="Identify your plant"
 )
 async def identify_handle(image: UploadFile = File(...)):
     image_bytes = await image_validate(image)
