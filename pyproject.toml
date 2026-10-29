@@ -18,7 +18,7 @@ dependencies = [
     "pydantic-settings>=2.16.1",
     "python-multipart>=0.0.32",
     "ruff>=0.17.3",
-    "sqlalchemy>=2.1.6",
+    "sqlalchemy[asyncio]>=2.1.6",
     "unicorn>=2.1.4",
     "uvicorn>=0.54.0",
 ]

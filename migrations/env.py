@@ -5,6 +5,10 @@ from sqlalchemy import pool
 
 from alembic import context
 
+from app.core.config import settings
+from app.services.postgres import Base, sync_engine
+from app.api.chat.models import Chat, ChatMessage
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -18,7 +22,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = None
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -38,7 +42,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = settings.pg_psycopg_dsn
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -56,14 +60,8 @@ def run_migrations_online() -> None:
     In this scenario we need to create an Engine
     and associate a connection with the context.
 
-    """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
-    with connectable.connect() as connection:
+    """    
+    with sync_engine.connect() as connection:
         context.configure(
             connection=connection, target_metadata=target_metadata
         )
