@@ -19,7 +19,7 @@ def parse_response(response_content: bytes) -> PlantNetResponse:
 
 
 async def identify_service(image_bytes: bytes) -> PlantNetResponse:
-    params = {"api-key": settings.IDENTIFIER_API_URL}
+    params = {"api-key": settings.IDENTIFIER_API_KEY}
 
     file_name = f"scan_{secrets.token_hex(4)}.jpg"
 

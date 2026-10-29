@@ -1,6 +1,7 @@
 from openai import AsyncOpenAI
 
 from app.core.config import settings
+from app.core.enums import Roles
 from app.services.prompts import PLANT_EXPERT_SYSTEM_PROMPT
 
 client = AsyncOpenAI(
@@ -21,8 +22,8 @@ async def generate_expert_reply(
         system_prompt += f"\nТекущее изучаемое растение: {plant_context}"
 
     messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message},
+        {"role": Roles.SYSTEM, "content": system_prompt},
+        {"role": Roles.USER, "content": user_message},
     ]
 
     response = await client.chat.completions.create(

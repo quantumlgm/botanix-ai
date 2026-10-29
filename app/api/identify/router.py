@@ -12,4 +12,5 @@ router = APIRouter(prefix="/plants", tags=["Plants"])
 async def identify_handle(image: UploadFile = File(...)):
     image_bytes = await image_validate(image)
 
-    result = await identify_service(image_bytes)
+    result = await identify_service(image_bytes)    
+    return result
