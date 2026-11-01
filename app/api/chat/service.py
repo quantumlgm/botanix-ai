@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.core.enums import Roles
 from app.services.prompts import PLANT_EXPERT_SYSTEM_PROMPT
 
+
 client = AsyncOpenAI(
     base_url=settings.PROVIDER_URL,
     api_key=settings.PROVIDER_API_KEY,

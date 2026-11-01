@@ -9,7 +9,7 @@ PLANT_EXPERT_SYSTEM_PROMPT = """
 """.strip()
 
 
-PLANT_ANALYSIS_USER_TEMPLATE = """
+PLANT_ANALYSIS_USER_PROMPT = """
 Данные распознавания:
 - Латинское название: {scientific_name}
 - Семейство: {family}
