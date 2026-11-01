@@ -9,4 +9,5 @@ class MimeType(StrEnum):
 
 class Roles(StrEnum):
     SYSTEM = "system"
-    USER = "user"    
+    USER = "user"
+    ASSISTANT = "assistant"
