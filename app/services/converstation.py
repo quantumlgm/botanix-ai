@@ -46,16 +46,19 @@ async def create_message(
 
 
 async def get_chat_messages(
-    session: AsyncSession, chat_id: UUID
+    session: AsyncSession, chat_id: UUID, limit: int = 10
 ) -> Sequence[ChatMessage]:
     query = (
         select(ChatMessage)
         .where(ChatMessage.chat_id == chat_id)
-        .order_by(ChatMessage.created_at.asc())
+        .order_by(ChatMessage.created_at.desc())
+        .limit(limit)
     )
 
     result = await session.execute(query)
-    return result.scalars().all()
+    messages = result.scalars().all()
+    
+    return list(reversed(messages))
 
 
 async def send_message_flow(session: AsyncSession, chat_id: UUID, message: str) -> str:
