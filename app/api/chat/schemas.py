@@ -1,5 +1,5 @@
-from typing import Sequence
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from app.core.enums import Roles
@@ -24,8 +24,8 @@ class BotReplyResponse(BaseModel):
 
 
 class MessageHistoryResponse(BaseModel):
-    role: Roles 
+    role: Roles
     content: str
-    
+
     class Config:
-        from_attributes = True 
+        from_attributes = True

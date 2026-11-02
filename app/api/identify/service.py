@@ -37,5 +37,5 @@ async def identify_service(image_bytes: bytes) -> PlantNetResponse:
                 detail=f"PlantNet API error: {response.text}",
             )
 
-        parsed_result = parse_response(response.content)
+        parsed_result = parse_response(response_content=response.content)
         return parsed_result

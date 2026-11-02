@@ -1,15 +1,15 @@
-from typing import Sequence
+from collections.abc import Sequence
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from openai import AsyncOpenAI
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.chat.models import Chat, ChatMessage
 from app.core.config import settings
 from app.core.enums import Roles
 from app.services.prompts import PLANT_EXPERT_SYSTEM_PROMPT
-
 
 client = AsyncOpenAI(
     base_url=settings.PROVIDER_URL,
@@ -58,7 +58,7 @@ async def get_chat_messages(
     return result.scalars().all()
 
 
-async def send_message_flow(session: AsyncSession, chat_id: UUID, user_text: str) -> str:
+async def send_message_flow(session: AsyncSession, chat_id: UUID, message: str) -> str:
     query = select(Chat).where(Chat.id == chat_id)
     result = await session.execute(query)
     chat_record = result.scalar_one_or_none()
@@ -68,15 +68,19 @@ async def send_message_flow(session: AsyncSession, chat_id: UUID, user_text: str
             detail="Chat not found", status_code=status.HTTP_404_NOT_FOUND
         )
 
-    await create_message(session, chat_id, Roles.USER, user_text)
+    await create_message(
+        session=session, chat_id=chat_id, role=Roles.USER, content=message
+    )
 
-    history = await get_chat_messages(session, chat_id)
+    history = await get_chat_messages(session=session, chat_id=chat_id)
 
     ai_reply = await generate_expert_reply(
         history=history, plant_context=chat_record.plant_context
     )
-    
-    await create_message(session, chat_id, Roles.ASSISTANT, ai_reply)
+
+    await create_message(
+        session=session, chat_id=chat_id, role=Roles.ASSISTANT, content=ai_reply
+    )
 
     return ai_reply
 

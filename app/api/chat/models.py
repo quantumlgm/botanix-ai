@@ -1,9 +1,11 @@
-from sqlalchemy import Enum, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 import uuid
+
+from sqlalchemy import Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.core.enums import Roles
-from app.services.postgres import Base, UuidId, Timestamp
+from app.services.postgres import Base, Timestamp, UuidId
 
 
 class Chat(Base, UuidId, Timestamp):

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
-
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.identify.service import identify_service
 from app.services.converstation import create_chat, send_message_flow
 from app.services.images.images import image_validate
@@ -18,8 +18,8 @@ async def identify_handle(
     image: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
 ):
-    image_bytes = await image_validate(image)
-    plant_data = await identify_service(image_bytes)    
+    image_bytes = await image_validate(image=image)
+    plant_data = await identify_service(image_bytes=image_bytes)
 
     if question and question.strip():
         user_message = question.strip()
@@ -31,19 +31,13 @@ async def identify_handle(
         )
 
     chat = await create_chat(
-        session=session, 
-        title=plant_data.scientific_name, 
-        plant_context=plant_data.context_str
+        session=session,
+        title=plant_data.scientific_name,
+        plant_context=plant_data.context_str,
     )
 
     reply = await send_message_flow(
-        session=session, 
-        chat_id=chat.id, 
-        user_text=user_message
+        session=session, chat_id=chat.id, message=user_message
     )
 
-    return {
-        "chat_id": chat.id,
-        "plant_data": plant_data.best_result,
-        "reply": reply
-    }
+    return {"chat_id": chat.id, "plant_data": plant_data.best_result, "reply": reply}
