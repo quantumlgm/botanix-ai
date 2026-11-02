@@ -1,6 +1,8 @@
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
+from collections.abc import AsyncGenerator
 from fastapi import HTTPException, status
 from openai import AsyncOpenAI
 from sqlalchemy import delete, select
@@ -57,7 +59,7 @@ async def get_chat_messages(
 
     result = await session.execute(query)
     messages = result.scalars().all()
-    
+
     return list(reversed(messages))
 
 
@@ -95,7 +97,8 @@ async def generate_expert_reply(
     if plant_context:
         system_prompt += f"\nТекущее изучаемое растение: {plant_context}"
 
-    llm_messages = [{"role": "system", "content": system_prompt}]
+    llm_messages: Any = [{"role": "system", "content": system_prompt}]
+
     for msg in history:
         llm_messages.append({"role": msg.role, "content": msg.content})
 
@@ -110,3 +113,74 @@ async def delete_chat(session: AsyncSession, chat_id: UUID):
     query = delete(Chat).where(Chat.id == chat_id)
     await session.execute(query)
     await session.commit()
+
+
+async def stream_expert_reply(    
+    history: Sequence[ChatMessage],
+    plant_context: str | None = None
+) -> AsyncGenerator[str, None]:
+    system_prompt = PLANT_EXPERT_SYSTEM_PROMPT
+    if plant_context:
+        system_prompt += f"\nТекущее изучаемое растение: {plant_context}."
+
+    llm_messages: Any = [{"role": "system", "content": system_prompt}]
+
+    for msg in history:
+        llm_messages.append({
+            "role": msg.role,
+            "content": msg.content
+        })
+
+    response_stream = await client.chat.completions.create(
+        model=settings.MODEL_NAME,
+        messages=llm_messages,
+        temperature=0.3,
+        stream=True, 
+    )
+    
+    async for chunk in response_stream:
+        if chunk.choices and chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
+
+
+async def send_message_stream_flow(
+    session: AsyncSession,
+    chat_id: UUID,
+    message: str
+) -> AsyncGenerator[str, None]:
+    query = select(Chat).where(Chat.id == chat_id)
+    result = await session.execute(query)
+    chat_record = result.scalar_one_or_none()
+
+    if chat_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat not found"
+        )
+
+    await create_message(
+        session=session,
+        chat_id=chat_id,
+        role=Roles.USER,
+        content=message
+    )
+
+    history = await get_chat_messages(session=session, chat_id=chat_id)
+
+    full_response_parts: list[str] = []
+
+    async for token in stream_expert_reply(
+        history=history, 
+        plant_context=chat_record.plant_context
+    ):
+        full_response_parts.append(token)
+        yield f"data: {token}\n\n"
+
+    full_reply = "".join(full_response_parts)
+    if full_reply:
+        await create_message(
+            session=session,
+            chat_id=chat_id,
+            role=Roles.ASSISTANT,
+            content=full_reply
+        )

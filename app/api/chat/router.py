@@ -2,20 +2,24 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.models import ChatMessage
 from app.api.chat.schemas import (
     BotReplyResponse,
+    ChatAskRequest,
     ChatCreateResponse,
     MessageHistoryResponse,
     UserMessageRequest,
 )
+from app.core.enums import MimeType
 from app.services.converstation import (
     create_chat,
     delete_chat,
     get_chat_messages,
     send_message_flow,
+    send_message_stream_flow,
 )
 from app.services.postgres import get_session
 
@@ -57,6 +61,24 @@ async def send_message_handle(
         session=session, chat_id=chat_id, message=payload.message
     )
     return BotReplyResponse(reply=ai_reply)
+
+
+@router.post("/{chat_id}/stream", summary="Stream chat message reply")
+async def send_message_stream_handler(
+    chat_id: UUID,
+    payload: ChatAskRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    stream_generator = send_message_stream_flow(
+        session=session,
+        chat_id=chat_id,
+        message=payload.message
+    )
+
+    return StreamingResponse(
+        stream_generator,
+        media_type=MimeType.MEDIA_EVENT_STREAM
+    )
 
 
 @router.get(
