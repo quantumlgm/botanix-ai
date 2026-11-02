@@ -1,13 +1,20 @@
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class UserMessageRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=700)
+
+
 class ChatAskRequest(BaseModel):
-    message: str = Field(..., description="The user’s question to the assistant")
-    plant_context: str | None = Field(
-        default=None, description="Context about the plant"
-    )
+    message: str = Field(..., min_length=1, max_length=700)
+    plant_context: str | None = Field(default=None)
 
 
-class ChatAskResponse(BaseModel):
+class ChatCreateResponse(BaseModel):
+    chat_id: UUID
     reply: str
-    model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+
+
+class BotReplyResponse(BaseModel):
+    reply: str

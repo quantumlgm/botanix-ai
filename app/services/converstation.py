@@ -58,7 +58,7 @@ async def get_chat_messages(
     return result.scalars().all()
 
 
-async def send_message_flow(session: AsyncSession, chat_id: UUID, user_text: str):
+async def send_message_flow(session: AsyncSession, chat_id: UUID, user_text: str) -> str:
     query = select(Chat).where(Chat.id == chat_id)
     result = await session.execute(query)
     chat_record = result.scalar_one_or_none()
@@ -72,13 +72,13 @@ async def send_message_flow(session: AsyncSession, chat_id: UUID, user_text: str
 
     history = await get_chat_messages(session, chat_id)
 
-    ai_reply_text = await generate_expert_reply(
+    ai_reply = await generate_expert_reply(
         history=history, plant_context=chat_record.plant_context
     )
+    
+    await create_message(session, chat_id, Roles.ASSISTANT, ai_reply)
 
-    await create_message(session, chat_id, Roles.ASSISTANT, ai_reply_text)
-
-    return ai_reply_text
+    return ai_reply
 
 
 async def generate_expert_reply(

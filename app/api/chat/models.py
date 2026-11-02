@@ -10,7 +10,7 @@ class Chat(Base, UuidId, Timestamp):
     __tablename__ = "chats"
 
     title: Mapped[str]
-    plant_context: Mapped[str]
+    plant_context: Mapped[str | None] = mapped_column(nullable=True, default=None)
 
     messages: Mapped[list["ChatMessage"]] = relationship(
         back_populates="chat", cascade="all, delete-orphan"
