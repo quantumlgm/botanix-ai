@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from openai import AsyncOpenAI
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.chat.models import Chat, ChatMessage
 from app.core.config import settings
@@ -97,3 +97,9 @@ async def generate_expert_reply(
     )
     choice = response.choices[0]
     return choice.message.content or "Не удалось получить ответ от модели."
+
+
+async def delete_chat(session: AsyncSession, chat_id: UUID):
+    query = delete(Chat).where(Chat.id == chat_id)
+    await session.execute(query)
+    await session.commit()

@@ -1,10 +1,12 @@
+from typing import Sequence
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, status
+from fastapi import APIRouter, Body, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.chat.schemas import BotReplyResponse, ChatCreateResponse, UserMessageRequest
+from app.api.chat.models import ChatMessage
+from app.api.chat.schemas import BotReplyResponse, ChatCreateResponse, MessageHistoryResponse, UserMessageRequest
 from app.core.enums import Roles
-from app.services.converstation import create_chat, send_message_flow
+from app.services.converstation import create_chat, delete_chat, get_chat_messages, send_message_flow
 from app.services.postgres import get_session
 
 
@@ -35,7 +37,7 @@ async def chat_handle(
 
 @router.post(
     "/{chat_id}/messages",
-    response_model=..., 
+    response_model=BotReplyResponse, 
     status_code=status.HTTP_201_CREATED,
     summary="Start a new text chat"
 )
@@ -46,3 +48,28 @@ async def send_message_handle(
 ) -> BotReplyResponse:
     ai_reply = await send_message_flow(session, chat_id, payload.message)    
     return BotReplyResponse(reply=ai_reply)
+
+
+@router.get(
+    "/{chat_id}/messages",
+    response_model=list[MessageHistoryResponse],     
+    summary="Get messages"
+)
+async def get_messages_handle(
+    chat_id: UUID,     
+    session: AsyncSession = Depends(get_session)
+) ->  Sequence[ChatMessage]:
+    return await get_chat_messages(session, chat_id)
+
+
+@router.get(
+    "/{chat_id}",    
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete an existing chat"
+)
+async def delete_chat_handle(
+    chat_id: UUID,     
+    session: AsyncSession = Depends(get_session)
+) -> Response:
+    await delete_chat(session, chat_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT) 
