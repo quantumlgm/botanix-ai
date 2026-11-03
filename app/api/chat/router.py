@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.users.models import User
 from app.api.chat.models import ChatMessage
 from app.api.chat.schemas import (
     BotReplyResponse,
@@ -13,6 +14,7 @@ from app.api.chat.schemas import (
     MessageHistoryResponse,
     UserMessageRequest,
 )
+from app.api.users.service import get_current_user
 from app.core.enums import MimeType
 from app.services.converstation import (
     create_chat,
@@ -33,11 +35,13 @@ router = APIRouter(prefix="/chats", tags=["Chats"])
     summary="Start a new text chat",
 )
 async def chat_handle(
-    payload: UserMessageRequest, session: AsyncSession = Depends(get_session)
+    payload: UserMessageRequest, 
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
 ) -> ChatCreateResponse:
     title = payload.message.strip()[:30]
 
-    created_chat = await create_chat(session, title)
+    created_chat = await create_chat(session, current_user.id, title)
 
     ai_reply = await send_message_flow(
         session=session, chat_id=created_chat.id, message=payload.message
@@ -92,7 +96,7 @@ async def get_messages_handle(
     return await get_chat_messages(session=session, chat_id=chat_id)
 
 
-@router.get(
+@router.delete(
     "/{chat_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete an existing chat",

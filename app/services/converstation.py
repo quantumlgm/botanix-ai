@@ -24,9 +24,16 @@ client = AsyncOpenAI(
 
 
 async def create_chat(
-    session: AsyncSession, title: str, plant_context: str | None = None
+    session: AsyncSession, 
+    user_id: UUID, 
+    title: str, 
+    plant_context: str | None = None
 ) -> Chat:
-    chat = Chat(title=title, plant_context=plant_context)
+    chat = Chat(
+        title=title, 
+        user_id=user_id, 
+        plant_context=plant_context
+    )
 
     session.add(chat)
     await session.commit()
