@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -10,16 +9,9 @@ from app.api.chat.models import Chat, ChatMessage
 
 
 async def create_chat(
-    session: AsyncSession, 
-    user_id: UUID, 
-    title: str, 
-    plant_context: str | None = None
+    session: AsyncSession, user_id: UUID, title: str, plant_context: str | None = None
 ) -> Chat:
-    chat = Chat(
-        title=title, 
-        user_id=user_id, 
-        plant_context=plant_context
-    )
+    chat = Chat(title=title, user_id=user_id, plant_context=plant_context)
 
     session.add(chat)
     await session.commit()
@@ -29,34 +21,25 @@ async def create_chat(
 
 
 async def get_user_chat(
-    session: AsyncSession, 
+    session: AsyncSession,
     chat_id: UUID,
-    user_id: UUID, 
+    user_id: UUID,
 ) -> Chat:
-    query = select(Chat).where(
-        Chat.user_id == user_id, 
-        Chat.id == chat_id
-    )
+    query = select(Chat).where(Chat.user_id == user_id, Chat.id == chat_id)
     result = await session.execute(query)
     chat_record = result.scalar_one_or_none()
 
     if chat_record is None:
         raise HTTPException(
-            detail="Chat not found", 
+            detail="Chat not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
-    
+
     return chat_record
 
 
-async def get_user_chats(
-    session: AsyncSession, user_id: UUID
-) -> Sequence[Chat]:
-    query = (
-        select(Chat)
-        .where(Chat.user_id == user_id)
-        .order_by(Chat.created_at.desc())
-    )
+async def get_user_chats(session: AsyncSession, user_id: UUID) -> Sequence[Chat]:
+    query = select(Chat).where(Chat.user_id == user_id).order_by(Chat.created_at.desc())
     result = await session.execute(query)
     return result.scalars().all()
 

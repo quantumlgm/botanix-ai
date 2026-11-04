@@ -14,11 +14,17 @@ from app.api.chat.schemas import (
     UserChatResponse,
     UserMessageRequest,
 )
-from app.api.chat.service import create_chat, delete_chat, get_chat_messages, get_user_chat, get_user_chats
+from app.api.chat.service import (
+    create_chat,
+    delete_chat,
+    get_chat_messages,
+    get_user_chat,
+    get_user_chats,
+)
 from app.api.users.models import User
 from app.api.users.service import get_current_user
 from app.core.enums import MimeType
-from app.services.converstation import (            
+from app.services.converstation import (
     send_message_flow,
     send_message_stream_flow,
 )
@@ -34,16 +40,19 @@ router = APIRouter(prefix="/chats", tags=["Chats"])
     summary="Start a new text chat",
 )
 async def create_chat_handle(
-    payload: UserMessageRequest, 
+    payload: UserMessageRequest,
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ) -> ChatCreateResponse:
     title = payload.message.strip()[:30]
 
     created_chat = await create_chat(session, current_user.id, title)
 
     ai_reply = await send_message_flow(
-        session=session, chat_id=created_chat.id, user_id=current_user.id, message=payload.message
+        session=session,
+        chat_id=created_chat.id,
+        user_id=current_user.id,
+        message=payload.message,
     )
 
     return ChatCreateResponse(chat_id=created_chat.id, reply=ai_reply)
@@ -62,7 +71,10 @@ async def send_message_handle(
     session: AsyncSession = Depends(get_session),
 ) -> BotReplyResponse:
     ai_reply = await send_message_flow(
-        session=session, chat_id=chat_id, user_id=current_user.id, message=payload.message
+        session=session,
+        chat_id=chat_id,
+        user_id=current_user.id,
+        message=payload.message,
     )
     return BotReplyResponse(reply=ai_reply)
 
@@ -78,13 +90,10 @@ async def send_message_stream_handle(
         session=session,
         user_id=current_user.id,
         chat_id=chat_id,
-        message=payload.message
+        message=payload.message,
     )
 
-    return StreamingResponse(
-        stream_generator,
-        media_type=MimeType.MEDIA_EVENT_STREAM
-    )
+    return StreamingResponse(stream_generator, media_type=MimeType.MEDIA_EVENT_STREAM)
 
 
 @router.get(
@@ -93,22 +102,18 @@ async def send_message_stream_handle(
     summary="Get messages",
 )
 async def get_messages_handle(
-    chat_id: UUID, 
+    chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ) -> Sequence[ChatMessage]:
     await get_user_chat(session=session, chat_id=chat_id, user_id=current_user.id)
     return await get_chat_messages(session=session, chat_id=chat_id)
 
 
-@router.get(
-    "",
-    response_model=list[UserChatResponse],
-    summary="Get all user chats"
-)
+@router.get("", response_model=list[UserChatResponse], summary="Get all user chats")
 async def get_chats_handle(
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)    
+    session: AsyncSession = Depends(get_session),
 ) -> Sequence[Chat]:
     user_chats = await get_user_chats(session=session, user_id=current_user.id)
     return user_chats
@@ -120,9 +125,9 @@ async def get_chats_handle(
     summary="Delete an existing chat",
 )
 async def delete_chat_handle(
-    chat_id: UUID, 
+    chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ) -> Response:
     await delete_chat(session=session, user_id=current_user.id, chat_id=chat_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

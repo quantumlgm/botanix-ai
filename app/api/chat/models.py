@@ -18,7 +18,7 @@ class Chat(Base, UuidId, Timestamp):
         back_populates="chat", cascade="all, delete-orphan"
     )
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    
+
     user: Mapped["User"] = relationship(back_populates="chats")
 
 
