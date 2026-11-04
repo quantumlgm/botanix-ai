@@ -7,7 +7,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.models import Chat, ChatMessage
-from app.api.chat.schemas import UserChatResponse
 
 
 async def create_chat(
