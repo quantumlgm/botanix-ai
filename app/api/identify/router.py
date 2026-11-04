@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.identify.service import identify_service
+from app.api.users.models import User
+from app.api.users.service import get_current_user
 from app.services.converstation import create_chat, send_message_flow
 from app.services.images.images import image_validate
 from app.services.postgres import get_session
@@ -15,6 +17,7 @@ router = APIRouter(prefix="/plants", tags=["Plants"])
 )
 async def identify_handle(
     question: str | None = Form(default=None),
+    current_user: User = Depends(get_current_user),
     image: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
 ):
@@ -32,6 +35,7 @@ async def identify_handle(
 
     chat = await create_chat(
         session=session,
+        user_id=current_user.id,
         title=plant_data.scientific_name,
         plant_context=plant_data.context_str,
     )
