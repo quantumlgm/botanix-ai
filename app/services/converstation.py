@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.models import Chat, ChatMessage
+from app.api.users.service import get_user_chat
 from app.core.config import settings
 from app.core.enums import Roles
 from app.services.prompts import PLANT_EXPERT_SYSTEM_PROMPT
@@ -70,10 +71,8 @@ async def get_chat_messages(
     return list(reversed(messages))
 
 
-async def send_message_flow(session: AsyncSession, chat_id: UUID, message: str) -> str:
-    query = select(Chat).where(Chat.id == chat_id)
-    result = await session.execute(query)
-    chat_record = result.scalar_one_or_none()
+async def send_message_flow(session: AsyncSession, chat_id: UUID, user_id: UUID, message: str) -> str:
+    chat_record = await get_user_chat(session=session, chat_id=chat_id, user_id=user_id)
 
     if chat_record is None:
         raise HTTPException(
@@ -116,8 +115,8 @@ async def generate_expert_reply(
     return choice.message.content or "Не удалось получить ответ от модели."
 
 
-async def delete_chat(session: AsyncSession, chat_id: UUID):
-    query = delete(Chat).where(Chat.id == chat_id)
+async def delete_chat(session: AsyncSession, user_id: UUID, chat_id: UUID):
+    query = delete(Chat).where(Chat.id == chat_id, Chat.user_id == user_id)
     await session.execute(query)
     await session.commit()
 

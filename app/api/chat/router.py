@@ -14,7 +14,7 @@ from app.api.chat.schemas import (
     MessageHistoryResponse,
     UserMessageRequest,
 )
-from app.api.users.service import get_current_user
+from app.api.users.service import get_current_user, get_user_chat
 from app.core.enums import MimeType
 from app.services.converstation import (
     create_chat,
@@ -44,7 +44,7 @@ async def chat_handle(
     created_chat = await create_chat(session, current_user.id, title)
 
     ai_reply = await send_message_flow(
-        session=session, chat_id=created_chat.id, message=payload.message
+        session=session, chat_id=created_chat.id, user_id=current_user.id, message=payload.message
     )
 
     return ChatCreateResponse(chat_id=created_chat.id, reply=ai_reply)
@@ -59,10 +59,11 @@ async def chat_handle(
 async def send_message_handle(
     chat_id: UUID,
     payload: UserMessageRequest,
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> BotReplyResponse:
     ai_reply = await send_message_flow(
-        session=session, chat_id=chat_id, message=payload.message
+        session=session, chat_id=chat_id, user_id=current_user.id, message=payload.message
     )
     return BotReplyResponse(reply=ai_reply)
 
@@ -71,8 +72,11 @@ async def send_message_handle(
 async def send_message_stream_handler(
     chat_id: UUID,
     payload: ChatAskRequest,
+    current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    await get_user_chat(session=session, chat_id=chat_id, user_id=current_user.id)
+
     stream_generator = send_message_stream_flow(
         session=session,
         chat_id=chat_id,
@@ -91,8 +95,11 @@ async def send_message_stream_handler(
     summary="Get messages",
 )
 async def get_messages_handle(
-    chat_id: UUID, session: AsyncSession = Depends(get_session)
+    chat_id: UUID, 
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
 ) -> Sequence[ChatMessage]:
+    await get_user_chat(session=session, chat_id=chat_id, user_id=current_user.id)
     return await get_chat_messages(session=session, chat_id=chat_id)
 
 
@@ -102,7 +109,9 @@ async def get_messages_handle(
     summary="Delete an existing chat",
 )
 async def delete_chat_handle(
-    chat_id: UUID, session: AsyncSession = Depends(get_session)
+    chat_id: UUID, 
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
 ) -> Response:
-    await delete_chat(session=session, chat_id=chat_id)
+    await delete_chat(session=session, user_id=current_user.id, chat_id=chat_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
