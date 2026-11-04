@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.core.enums import Roles
 from app.services.postgres import Base, Timestamp, UuidId
 

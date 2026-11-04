@@ -5,14 +5,15 @@ from uuid import UUID
 from collections.abc import AsyncGenerator
 from fastapi import HTTPException, status
 from openai import AsyncOpenAI
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.models import Chat, ChatMessage
-from app.api.users.service import get_user_chat
+from app.api.chat.service import get_chat_messages, get_user_chat
 from app.core.config import settings
 from app.core.enums import Roles
 from app.services.prompts import PLANT_EXPERT_SYSTEM_PROMPT
+
 
 client = AsyncOpenAI(
     base_url=settings.PROVIDER_URL,
@@ -22,25 +23,6 @@ client = AsyncOpenAI(
         "X-Title": "Botanix AI",
     },
 )
-
-
-async def create_chat(
-    session: AsyncSession, 
-    user_id: UUID, 
-    title: str, 
-    plant_context: str | None = None
-) -> Chat:
-    chat = Chat(
-        title=title, 
-        user_id=user_id, 
-        plant_context=plant_context
-    )
-
-    session.add(chat)
-    await session.commit()
-    await session.refresh(chat)
-
-    return chat
 
 
 async def create_message(
@@ -55,30 +37,9 @@ async def create_message(
     return message
 
 
-async def get_chat_messages(
-    session: AsyncSession, chat_id: UUID, limit: int = 10
-) -> Sequence[ChatMessage]:
-    query = (
-        select(ChatMessage)
-        .where(ChatMessage.chat_id == chat_id)
-        .order_by(ChatMessage.created_at.desc())
-        .limit(limit)
-    )
-
-    result = await session.execute(query)
-    messages = result.scalars().all()
-
-    return list(reversed(messages))
-
-
 async def send_message_flow(session: AsyncSession, chat_id: UUID, user_id: UUID, message: str) -> str:
     chat_record = await get_user_chat(session=session, chat_id=chat_id, user_id=user_id)
-
-    if chat_record is None:
-        raise HTTPException(
-            detail="Chat not found", status_code=status.HTTP_404_NOT_FOUND
-        )
-
+    
     await create_message(
         session=session, chat_id=chat_id, role=Roles.USER, content=message
     )
@@ -115,12 +76,6 @@ async def generate_expert_reply(
     return choice.message.content or "Не удалось получить ответ от модели."
 
 
-async def delete_chat(session: AsyncSession, user_id: UUID, chat_id: UUID):
-    query = delete(Chat).where(Chat.id == chat_id, Chat.user_id == user_id)
-    await session.execute(query)
-    await session.commit()
-
-
 async def stream_expert_reply(    
     history: Sequence[ChatMessage],
     plant_context: str | None = None
@@ -151,12 +106,11 @@ async def stream_expert_reply(
 
 async def send_message_stream_flow(
     session: AsyncSession,
+    user_id: UUID,
     chat_id: UUID,
     message: str
 ) -> AsyncGenerator[str, None]:
-    query = select(Chat).where(Chat.id == chat_id)
-    result = await session.execute(query)
-    chat_record = result.scalar_one_or_none()
+    chat_record = await get_user_chat(session=session, user_id=user_id, chat_id=chat_id)
 
     if chat_record is None:
         raise HTTPException(

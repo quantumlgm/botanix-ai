@@ -1,10 +1,8 @@
-from uuid import UUID
 
-from fastapi import Depends, HTTPException, Header, status
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.chat.models import Chat
 from app.api.users.models import User
 from app.core.security import validate_init_data
 from app.services.postgres import get_session
@@ -56,23 +54,3 @@ async def get_current_user(
 
     return user
 
-
-async def get_user_chat(
-    session: AsyncSession, 
-    chat_id: UUID,
-    user_id: UUID, 
-) -> Chat:
-    query = select(Chat).where(
-        Chat.user_id == user_id, 
-        Chat.id == chat_id
-    )
-    result = await session.execute(query)
-    chat_record = result.scalar_one_or_none()
-
-    if chat_record is None:
-        raise HTTPException(
-            detail="Chat not found", 
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    
-    return chat_record

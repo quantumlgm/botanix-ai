@@ -5,21 +5,20 @@ from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.users.models import User
-from app.api.chat.models import ChatMessage
+from app.api.chat.models import Chat, ChatMessage
 from app.api.chat.schemas import (
     BotReplyResponse,
     ChatAskRequest,
     ChatCreateResponse,
     MessageHistoryResponse,
+    UserChatResponse,
     UserMessageRequest,
 )
-from app.api.users.service import get_current_user, get_user_chat
+from app.api.chat.service import create_chat, delete_chat, get_chat_messages, get_user_chat, get_user_chats
+from app.api.users.models import User
+from app.api.users.service import get_current_user
 from app.core.enums import MimeType
-from app.services.converstation import (
-    create_chat,
-    delete_chat,
-    get_chat_messages,
+from app.services.converstation import (            
     send_message_flow,
     send_message_stream_flow,
 )
@@ -34,7 +33,7 @@ router = APIRouter(prefix="/chats", tags=["Chats"])
     status_code=status.HTTP_201_CREATED,
     summary="Start a new text chat",
 )
-async def chat_handle(
+async def create_chat_handle(
     payload: UserMessageRequest, 
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
@@ -69,16 +68,15 @@ async def send_message_handle(
 
 
 @router.post("/{chat_id}/stream", summary="Stream chat message reply")
-async def send_message_stream_handler(
+async def send_message_stream_handle(
     chat_id: UUID,
     payload: ChatAskRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    await get_user_chat(session=session, chat_id=chat_id, user_id=current_user.id)
-
     stream_generator = send_message_stream_flow(
         session=session,
+        user_id=current_user.id,
         chat_id=chat_id,
         message=payload.message
     )
@@ -101,6 +99,19 @@ async def get_messages_handle(
 ) -> Sequence[ChatMessage]:
     await get_user_chat(session=session, chat_id=chat_id, user_id=current_user.id)
     return await get_chat_messages(session=session, chat_id=chat_id)
+
+
+@router.get(
+    "",
+    response_model=list[UserChatResponse],
+    summary="Get all user chats"
+)
+async def get_chats_handle(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)    
+) -> Sequence[Chat]:
+    user_chats = await get_user_chats(session=session, user_id=current_user.id)
+    return user_chats
 
 
 @router.delete(

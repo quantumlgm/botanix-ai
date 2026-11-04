@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.users.models import User
 from app.api.identify.service import identify_service
+from app.api.users.models import User
 from app.api.users.service import get_current_user
 from app.services.converstation import create_chat, send_message_flow
 from app.services.images.images import image_validate
