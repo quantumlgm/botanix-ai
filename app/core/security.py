@@ -6,10 +6,14 @@ import json
 from fastapi import HTTPException, status
 from urllib.parse import parse_qsl
 
+from app.api.users.schemas import TelegramUserPayload
 from app.core.config import settings
 
 
-def validate_init_data(init_data: str, bot_token: str = settings.BOT_TOKEN):
+def validate_init_data(
+    init_data: str, 
+    bot_token: str = settings.BOT_TOKEN
+) -> TelegramUserPayload:
     parsed_data = dict(parse_qsl(init_data))
     received_hash = parsed_data.pop("hash", None)
 
@@ -49,5 +53,5 @@ def validate_init_data(init_data: str, bot_token: str = settings.BOT_TOKEN):
         )
 
     user_data = json.loads(user_json_str)
-    return user_data
+    return TelegramUserPayload.model_validate(user_data)
         

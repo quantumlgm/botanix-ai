@@ -4,15 +4,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.users.models import User
+from app.api.users.schemas import TelegramUserPayload
 from app.core.security import validate_init_data
 from app.services.postgres import get_session
 
 
 async def get_or_create_user(
     session: AsyncSession,
-    payload: dict
+    payload: TelegramUserPayload
 ) -> User:
-    tg_id = payload.get("id")
+    tg_id = payload.telegram_id
     
     query = select(User).where(User.telegram_id == tg_id)
     result = await session.execute(query)
@@ -23,8 +24,8 @@ async def get_or_create_user(
 
     new_user = User(
         telegram_id=tg_id,
-        username=payload.get("username"), 
-        first_name=payload.get("first_name")
+        username=payload.username,
+        first_name=payload.first_name
     )
 
     session.add(new_user)
