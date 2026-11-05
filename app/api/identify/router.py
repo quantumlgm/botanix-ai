@@ -5,10 +5,13 @@ from app.api.chat.service import create_chat
 from app.api.identify.service import identify_service
 from app.api.users.models import User
 from app.api.users.service import get_current_user
+from app.core.enums import RateLimit
+from app.services.limiter import limiter
 from app.services.converstation import send_message_flow
-from app.services.images.images import image_validate
+from app.services.images.service import image_validate
 from app.services.postgres import get_session
 from app.services.prompts import PLANT_ANALYSIS_USER_PROMPT
+
 
 router = APIRouter(prefix="/plants", tags=["Plants"])
 
@@ -16,6 +19,7 @@ router = APIRouter(prefix="/plants", tags=["Plants"])
 @router.post(
     "/identify", status_code=status.HTTP_201_CREATED, summary="Identify your plant"
 )
+@limiter.limit(RateLimit.LOW)
 async def identify_handle(
     question: str | None = Form(default=None),
     current_user: User = Depends(get_current_user),

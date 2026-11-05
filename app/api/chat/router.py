@@ -21,9 +21,10 @@ from app.api.chat.service import (
     get_user_chat,
     get_user_chats,
 )
+from app.services.limiter import limiter
 from app.api.users.models import User
 from app.api.users.service import get_current_user
-from app.core.enums import MimeType
+from app.core.enums import MimeType, RateLimit
 from app.services.converstation import (
     send_message_flow,
     send_message_stream_flow,
@@ -39,6 +40,7 @@ router = APIRouter(prefix="/chats", tags=["Chats"])
     status_code=status.HTTP_201_CREATED,
     summary="Start a new text chat",
 )
+@limiter.limit(RateLimit.LOW)
 async def create_chat_handle(
     payload: UserMessageRequest,
     current_user: User = Depends(get_current_user),
