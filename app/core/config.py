@@ -1,3 +1,4 @@
+from pydantic_core import MultiHostUrl, Url
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,12 +19,30 @@ class Settings(BaseSettings):
 
     @property
     def pg_psycopg_dsn(self) -> str:
-        return f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-
+        return str(
+            Url.build(
+                scheme="postgresql+psycopg",
+                username=self.POSTGRES_USER,
+                password=self.POSTGRES_PASSWORD,
+                host=self.POSTGRES_HOST,
+                port=self.POSTGRES_PORT,
+                path=self.POSTGRES_DB,
+            )
+        )
+    
     @property
-    def pg_asyncpg_dsn(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-
+    def pg_asyncpg_dsn(self) -> str:        
+        return str(
+            Url.build(
+                scheme="postgresql+asyncpg",
+                username=self.POSTGRES_USER,
+                password=self.POSTGRES_PASSWORD,
+                host=self.POSTGRES_HOST,
+                port=self.POSTGRES_PORT,
+                path=self.POSTGRES_DB,
+            )
+        )
+    
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

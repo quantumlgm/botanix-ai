@@ -7,6 +7,8 @@ from app.api.users.router import router as user_router
 
 app = FastAPI()
 
+app.state.limiter = limiter
+
 app.include_router(identify_router)
 app.include_router(chat_router)
 app.include_router(user_router)

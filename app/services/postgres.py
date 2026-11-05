@@ -27,7 +27,7 @@ class UuidId:
 
 
 engine = create_async_engine(settings.pg_asyncpg_dsn)
-sync_engine = create_engine(settings.pg_psycopg_dsn, echo=True)
+sync_engine = create_engine(settings.pg_psycopg_dsn)
 
 
 sessionmaker = async_sessionmaker(

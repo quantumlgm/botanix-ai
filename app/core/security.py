@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import time
 from urllib.parse import parse_qsl
 
 from fastapi import HTTPException, status
@@ -25,6 +26,21 @@ def validate_init_data(
         f"{key}={value}" for key, value in sorted(parsed_data.items())
     )
 
+    recieved_auth_date = parsed_data.get("auth_date")
+    if not recieved_auth_date:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing auth_date in Telegram init data.",
+        )
+
+    try:
+        auth_date = int(recieved_auth_date)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid auth_date format.",
+        )
+
     secret_key = hmac.new(
         key=b"WebAppData", msg=bot_token.encode("utf-8"), digestmod=hashlib.sha256
     ).digest()
@@ -37,6 +53,19 @@ def validate_init_data(
         raise HTTPException(
             detail="The Telegram signature did not match.",
             status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    now = int(time.time())
+    if now - auth_date > 86400:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram init data is expired.",
+        )
+
+    if auth_date > now + 120:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telegram init data auth_date is in the future.",
         )
 
     user_json_str = parsed_data.get("user")
