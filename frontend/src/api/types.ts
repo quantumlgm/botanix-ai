@@ -33,3 +33,5 @@ export interface PlantIdentificationResult {
   description?: string;
   chat_id?: string;
 }
+
+export type Screen = 'home' | 'identify' | 'chat';

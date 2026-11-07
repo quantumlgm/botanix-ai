@@ -13,7 +13,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.get(
     "/me", response_model=UserProfileResponse, summary="Get current user profile"
 )
-@limiter.limit(RateLimit.LOW)
+@limiter.limit(RateLimit.HIGH)
 async def get_user_profile_handle(
     request: Request,
     current_user: User = Depends(get_current_user),
