@@ -49,3 +49,12 @@ class PlantNetResponse(BaseModel):
     @property
     def context_str(self) -> str:
         return f"{self.scientific_name} ({self.family_name})"
+
+
+class PlantIdentifyResponse(BaseModel):
+    chat_id: str
+    scientific_name: str
+    family_name: str
+    common_names: list[str] = Field(default_factory=list)
+    confidence: float
+    reply: str

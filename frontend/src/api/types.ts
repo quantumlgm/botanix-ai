@@ -27,11 +27,12 @@ export interface ChatMessage {
 }
 
 export interface PlantIdentificationResult {
+  chat_id: string;
   scientific_name: string;
+  family_name: string;
   common_names: string[];
   confidence: number;
-  description?: string;
-  chat_id?: string;
+  reply: string;
 }
 
 export type Screen = 'home' | 'identify' | 'chat';
