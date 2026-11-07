@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     BOT_TOKEN: str
 
+    DEBUG: bool = True
+
     @property
     def pg_psycopg_dsn(self) -> str:
         return str(

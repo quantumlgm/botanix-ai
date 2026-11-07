@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.api.users.models import User
 from app.api.users.schemas import UserProfileResponse
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 )
 @limiter.limit(RateLimit.LOW)
 async def get_user_profile_handle(
+    request: Request,
     current_user: User = Depends(get_current_user),
 ) -> User:
     return current_user

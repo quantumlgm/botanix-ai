@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.service import create_chat
@@ -21,6 +21,7 @@ router = APIRouter(prefix="/plants", tags=["Plants"])
 )
 @limiter.limit(RateLimit.LOW)
 async def identify_handle(
+    request: Request,
     question: str | None = Form(default=None),
     current_user: User = Depends(get_current_user),
     image: UploadFile = File(...),

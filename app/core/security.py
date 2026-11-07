@@ -13,6 +13,13 @@ from app.core.config import settings
 def validate_init_data(
     init_data: str, bot_token: str = settings.BOT_TOKEN
 ) -> TelegramUserPayload:
+    if settings.DEBUG and init_data == "dev_mock":
+        return TelegramUserPayload(
+            telegram_id=123456789,
+            first_name="Developer",
+            username="botanix_dev",
+        )
+
     parsed_data = dict(parse_qsl(init_data))
     received_hash = parsed_data.pop("hash", None)
 

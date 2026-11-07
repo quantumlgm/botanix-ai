@@ -23,11 +23,7 @@ export function setupTelegramMock(): void {
     language_code: "ru",
   };
 
-  const mockInitData = new URLSearchParams({
-    user: JSON.stringify(mockUser),
-    auth_date: Math.floor(Date.now() / 1000).toString(),
-    hash: "mock_hash_for_dev_mode",
-  }).toString();
+  const mockInitData = "dev_mock";
 
   (window as any).Telegram = {
     WebApp: {
