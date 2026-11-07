@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.4"
+    "@tailwindcss/vite": "^4.3.4",
+    "@types/telegram-web-app": "^10.1.0"
   }
 }

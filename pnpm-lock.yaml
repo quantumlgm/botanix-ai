@@ -11,6 +11,9 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.3.4
         version: 4.3.4(vite@8.3.6(jiti@2.7.0))
+      '@types/telegram-web-app':
+        specifier: ^10.1.0
+        version: 10.1.0
 
 packages:
 
@@ -224,6 +227,9 @@ packages:
     resolution: {integrity: sha512-wGukGWb8SVuN7+FJvSS7M5eSJWDIWwVSvUvj1q41eTIhGPsS2DAgFWjA7YURJNwjHSgty59Hz8iMUiyO+YMHBQ==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
+
+  '@types/telegram-web-app@10.1.0':
+    resolution: {integrity: sha512-g3AUv1lSUAFCg9tIfuEBBTy3Hs3+I6pI/BePWgFIunhREzqDL45jSeHjy66+/QDNxdCkVIfXVUC8N1a01PC3Lw==}
 
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
@@ -547,6 +553,8 @@ snapshots:
       '@tailwindcss/oxide': 4.3.4
       tailwindcss: 4.3.4
       vite: 8.3.6(jiti@2.7.0)
+
+  '@types/telegram-web-app@10.1.0': {}
 
   detect-libc@2.1.2: {}
 
