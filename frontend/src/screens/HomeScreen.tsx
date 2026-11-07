@@ -1,32 +1,48 @@
-import { useEffect, useState } from "react";
-import { Camera, MessageSquarePlus, MessageSquare, ChevronRight, Loader2, Sprout } from "lucide-react";
-import { getChats } from "../api/endpoints";
-import type { ChatItem } from "../api/types";
+import { useEffect, useState, useRef } from "react";
+import { Send, Bot, User, Loader2, Sparkles, AlertCircle } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { getChatMessages, createChat, streamChatMessage } from "../api/endpoints";
+import type { ChatMessage } from "../api/types";
 
-interface HomeScreenProps {
-  onNavigateToIdentify: () => void;
-  onOpenChat: (chatId: string) => void;
+interface ChatScreenProps {
+  chatId: string | null;
+  onChatCreated?: (newChatId: string) => void;
 }
 
-export function HomeScreen({ onNavigateToIdentify, onOpenChat }: HomeScreenProps) {
-  const [chats, setChats] = useState<ChatItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+export function ChatScreen({ chatId, onChatCreated }: ChatScreenProps) {
+  const [currentChatId, setCurrentChatId] = useState<string | null>(
+    chatId === "new" ? null : chatId
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-    async function fetchChats() {
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (!currentChatId) {
+      setMessages([]);
+      return;
+    }
+
+    let isMounted = true;
+    async function fetchMessages() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getChats();
+        const data = await getChatMessages(currentChatId!);
         if (isMounted) {
-          setChats(data);
+          setMessages(data);
         }
       } catch (err: any) {
         if (isMounted) {
-          setError(err?.response?.data?.detail || "Не удалось загрузить историю диалогов");
+          setError(err?.response?.data?.detail || "Не удалось загрузить историю сообщений");
         }
       } finally {
         if (isMounted) {
@@ -35,103 +51,185 @@ export function HomeScreen({ onNavigateToIdentify, onOpenChat }: HomeScreenProps
       }
     }
 
-    fetchChats();
-
+    fetchMessages();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentChatId]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isSending]);
+
+  const handleSend = async () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed || isSending) return;
+
+    const tempUserMsg: ChatMessage = {
+      id: String(Date.now()),
+      chat_id: currentChatId || "temp",
+      role: "user",
+      content: trimmed,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, tempUserMsg]);
+    setInputValue("");
+    setIsSending(true);
+    setError(null);
+
+    const assistantMsgId = String(Date.now() + 1);
+
+    try {
+      let targetChatId = currentChatId;
+
+      if (!targetChatId) {
+        const newChat = await createChat(trimmed);
+        targetChatId = newChat.chat_id;
+        setCurrentChatId(targetChatId);
+        onChatCreated?.(targetChatId);
+
+        const initialAssistantMsg: ChatMessage = {
+          id: assistantMsgId,
+          chat_id: targetChatId,
+          role: "assistant",
+          content: newChat.reply,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, initialAssistantMsg]);
+        setIsSending(false);
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantMsgId,
+          chat_id: targetChatId!,
+          role: "assistant",
+          content: "",
+          created_at: new Date().toISOString(),
+        },
+      ]);
+
+      await streamChatMessage(targetChatId, trimmed, (chunk: string) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, content: msg.content + chunk }
+              : msg
+          )
+        );
+      });
+    } catch (err: any) {
+      setError(err?.message || "Ошибка при передаче сообщения");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
 
   return (
-    <div className="flex flex-col gap-6 p-4 max-w-md mx-auto">
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={onNavigateToIdentify}
-          className="flex flex-col items-center justify-center gap-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4 text-emerald-400 active:scale-95 transition-all hover:bg-emerald-500/15"
-        >
-          <div className="p-2 rounded-xl bg-emerald-500/20">
-            <Camera className="w-6 h-6" />
-          </div>
-          <span className="text-sm font-semibold text-white">Определить вид</span>
-        </button>
-
-        <button
-          onClick={() => onOpenChat("new")}
-          className="flex flex-col items-center justify-center gap-2.5 rounded-2xl bg-slate-800/80 border border-slate-700/60 p-4 text-slate-200 active:scale-95 transition-all hover:bg-slate-800"
-        >
-          <div className="p-2 rounded-xl bg-slate-700/50">
-            <MessageSquarePlus className="w-6 h-6 text-emerald-400" />
-          </div>
-          <span className="text-sm font-semibold text-white">Новый вопрос</span>
-        </button>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
-            История диалогов
-          </h2>
-          <span className="text-xs text-slate-500 font-medium">
-            Всего: {chats.length}
-          </span>
-        </div>
-
-        {error && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-center text-xs text-red-400">
-            {error}
-          </div>
-        )}
-
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] max-w-md mx-auto">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400">
             <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
-            <span className="text-xs">Загружаем чаты...</span>
+            <span className="text-xs">Загрузка диалога...</span>
           </div>
         )}
 
-        {!isLoading && !error && chats.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 p-8 text-center gap-3">
-            <div className="p-3 rounded-full bg-slate-800/60 text-slate-500">
-              <Sprout className="w-8 h-8" />
+        {!isLoading && messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center p-6 gap-3 text-slate-400">
+            <div className="p-3 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <Sparkles className="w-6 h-6" />
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-slate-300">Диалогов пока нет</span>
-              <p className="text-xs text-slate-500">
-                Задайте вопрос ботанику или отправьте фото листа
-              </p>
-            </div>
+            <p className="text-sm font-medium text-slate-300">
+              Задайте вопрос ботанику
+            </p>
+            <p className="text-xs text-slate-500">
+              Например: «Почему сохнут кончики листьев у спатифиллума?»
+            </p>
           </div>
         )}
 
-        {!isLoading && !error && chats.length > 0 && (
-          <div className="flex flex-col gap-2">
-            {chats.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => onOpenChat(chat.id)}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-slate-800/40 border border-slate-800 hover:border-slate-700 active:scale-[0.98] transition-all text-left"
+        {messages.map((msg) => {
+          const isUser = msg.role === "user";
+          return (
+            <div
+              key={msg.id}
+              className={`flex items-start gap-2.5 ${
+                isUser ? "flex-row-reverse" : "flex-row"
+              }`}
+            >
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs ${
+                  isUser
+                    ? "bg-slate-700 text-slate-200"
+                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                }`}
               >
-                <div className="flex items-center gap-3 min-w-0 pr-2">
-                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
-                    <MessageSquare className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium text-white truncate">
-                      {chat.title || "Диалог без названия"}
-                    </span>
-                    {chat.plant_context && (
-                      <span className="text-xs text-emerald-400/80 truncate">
-                        {chat.plant_context}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+              </div>
 
-                <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
-              </button>
-            ))}
+              <div
+                className={`max-w-[80%] rounded-2xl p-3.5 text-xs leading-relaxed ${
+                  isUser
+                    ? "bg-emerald-600 text-white rounded-tr-none"
+                    : "bg-slate-800/80 text-slate-200 border border-slate-700/60 rounded-tl-none space-y-2 [&>h2]:text-sm [&>h2]:font-bold [&>h2]:text-emerald-400 [&>ul]:list-disc [&>ul]:pl-4 [&>p]:mb-1"
+                }`}
+              >
+                {isUser ? (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                ) : msg.content ? (
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                ) : (
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                    <span>Botanix печатает...</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {error && (
+          <div className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="p-3 border-t border-slate-800 bg-slate-900/90 backdrop-blur">
+        <div className="flex items-end gap-2 bg-slate-800/60 border border-slate-700 rounded-2xl p-1.5 focus-within:border-emerald-500/60 transition-colors">
+          <textarea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Напишите вопрос..."
+            rows={1}
+            disabled={isSending}
+            className="flex-1 bg-transparent px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none resize-none max-h-24"
+          />
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!inputValue.trim() || isSending}
+            className="p-2 rounded-xl bg-emerald-500 text-slate-950 font-semibold disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition shrink-0"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
