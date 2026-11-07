@@ -1,37 +1,62 @@
 import { apiClient } from "./client";
+import { API_BASE_URL } from "./config";
+import {
+  isChatCreateResponse,
+  isChatItem,
+  isChatMessageResponse,
+  isPlantIdentificationResult,
+  isUserProfile,
+} from "./types";
 import type {
   UserProfile,
   ChatItem,
   ChatCreateResponse,
-  ChatMessage,
+  ChatMessageResponse,
   PlantIdentificationResult,
 } from "./types";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
 export async function getProfile(): Promise<UserProfile> {
-  const response = await apiClient.get<UserProfile>("/users/me");
+  const response = await apiClient.get<unknown>("/users/me");
+  if (!isUserProfile(response.data)) {
+    throw new Error("Сервер вернул некорректный профиль пользователя");
+  }
   return response.data;
 }
 
 export async function getChats(): Promise<ChatItem[]> {
-  const response = await apiClient.get<ChatItem[]>("/chats");
+  const response = await apiClient.get<unknown>("/chats");
+  if (!Array.isArray(response.data) || !response.data.every(isChatItem)) {
+    throw new Error("Сервер вернул некорректный список диалогов");
+  }
   return response.data;
 }
 
 export async function deleteChat(chatId: string): Promise<void> {
-  await apiClient.delete(`/chats/${chatId}`);
+  await apiClient.delete(`/chats/${encodeURIComponent(chatId)}`);
 }
 
 export async function createChat(message: string): Promise<ChatCreateResponse> {
-  const response = await apiClient.post<ChatCreateResponse>("/chats", {
+  const response = await apiClient.post<unknown>("/chats", {
     message,
   });
+  if (!isChatCreateResponse(response.data)) {
+    throw new Error("Сервер вернул некорректный ответ при создании диалога");
+  }
   return response.data;
 }
 
-export async function getChatMessages(chatId: string): Promise<ChatMessage[]> {
-  const response = await apiClient.get<ChatMessage[]>(`/chats/${chatId}/messages`);
+export async function getChatMessages(
+  chatId: string
+): Promise<ChatMessageResponse[]> {
+  const response = await apiClient.get<unknown>(
+    `/chats/${encodeURIComponent(chatId)}/messages`
+  );
+  if (
+    !Array.isArray(response.data) ||
+    !response.data.every(isChatMessageResponse)
+  ) {
+    throw new Error("Сервер вернул некорректную историю сообщений");
+  }
   return response.data;
 }
 
@@ -42,18 +67,35 @@ export async function streamChatMessage(
 ): Promise<void> {
   const initData = window.Telegram?.WebApp?.initData || "";
 
-  const response = await fetch(`${API_BASE_URL}/chats/${chatId}/stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Telegram-Init-Data": initData,
-    },
-    body: JSON.stringify({ message }),
-  });
+  const response = await fetch(
+    `${API_BASE_URL}/chats/${encodeURIComponent(chatId)}/stream`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Telegram-Init-Data": initData,
+      },
+      body: JSON.stringify({ message }),
+    }
+  );
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.detail || `HTTP ${response.status}`);
+    const errorBody = await response.text();
+    let detail = errorBody;
+    try {
+      const parsed: unknown = JSON.parse(errorBody);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        "detail" in parsed &&
+        typeof parsed.detail === "string"
+      ) {
+        detail = parsed.detail;
+      }
+    } catch {
+      // Non-JSON error bodies are surfaced as plain text.
+    }
+    throw new Error(detail || `HTTP ${response.status}`);
   }
 
   const reader = response.body?.getReader();
@@ -64,56 +106,53 @@ export async function streamChatMessage(
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  const emitPayload = (payload: string): boolean => {
+    if (payload === "[DONE]") {
+      return true;
+    }
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
+    onChunk(payload || "\n");
+    return false;
+  };
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
+  const emitLine = (rawLine: string): boolean => {
+    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+    if (!line || line.startsWith(":")) return false;
 
-      if (trimmed.startsWith("data:")) {
-        const payload = trimmed.slice(5).trim();
-        if (payload === "[DONE]") {
+    if (line.startsWith("data:")) {
+      const payload = line.slice(5);
+      return emitPayload(payload.startsWith(" ") ? payload.slice(1) : payload);
+    }
+
+    onChunk(line);
+    return false;
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        buffer += decoder.decode();
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (emitLine(line)) {
+          await reader.cancel();
           return;
         }
-        try {
-          const parsed = JSON.parse(payload);
-          if (typeof parsed === "string") {
-            onChunk(parsed);
-          } else if (parsed && typeof parsed.content === "string") {
-            onChunk(parsed.content);
-          } else if (parsed && typeof parsed.reply === "string") {
-            onChunk(parsed.reply);
-          }
-        } catch {
-          onChunk(payload);
-        }
-      } else {
-        onChunk(trimmed);
       }
     }
-  }
 
-  if (buffer.trim()) {
-    const trimmed = buffer.trim();
-    if (trimmed.startsWith("data:")) {
-      const payload = trimmed.slice(5).trim();
-      if (payload !== "[DONE]") {
-        try {
-          const parsed = JSON.parse(payload);
-          onChunk(typeof parsed === "string" ? parsed : parsed.content || parsed.reply || payload);
-        } catch {
-          onChunk(payload);
-        }
-      }
-    } else {
-      onChunk(trimmed);
+    if (buffer.trim()) {
+      emitLine(buffer);
     }
+  } finally {
+    reader.releaseLock();
   }
 }
 
@@ -121,7 +160,7 @@ export async function identifyPlant(file: File): Promise<PlantIdentificationResu
   const formData = new FormData();
   formData.append("image", file);
 
-  const response = await apiClient.post<PlantIdentificationResult>(
+  const response = await apiClient.post<unknown>(
     "/plants/identify",
     formData,
     {
@@ -130,5 +169,8 @@ export async function identifyPlant(file: File): Promise<PlantIdentificationResu
       },
     }
   );
+  if (!isPlantIdentificationResult(response.data)) {
+    throw new Error("Сервер вернул некорректный результат распознавания");
+  }
   return response.data;
 }

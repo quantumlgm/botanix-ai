@@ -5,10 +5,16 @@ import type { UserProfile } from "../api/types";
 interface HeaderProps {
   currentScreen: Screen;
   user: UserProfile | null;
+  profileError: string | null;
   onBack: () => void;
 }
 
-export function Header({ currentScreen, user, onBack }: HeaderProps) {
+export function Header({
+  currentScreen,
+  user,
+  profileError,
+  onBack,
+}: HeaderProps) {
   const isHome = currentScreen === "home";
 
   return (
@@ -20,9 +26,15 @@ export function Header({ currentScreen, user, onBack }: HeaderProps) {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-white leading-tight">
-              {user ? user.first_name : "Загрузка..."}
+              {user?.first_name || (profileError ? "Профиль недоступен" : "Загрузка...")}
             </span>
-            <span className="text-xs text-emerald-400">Botanix AI готов к работе</span>
+            <span
+              className={
+                profileError ? "text-xs text-red-400" : "text-xs text-emerald-400"
+              }
+            >
+              {profileError ? "Не удалось загрузить профиль" : "Botanix AI готов к работе"}
+            </span>
           </div>
         </div>
       ) : (

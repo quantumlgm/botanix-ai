@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.models import Chat, ChatMessage
@@ -61,6 +61,15 @@ async def get_chat_messages(
 
 
 async def delete_chat(session: AsyncSession, user_id: UUID, chat_id: UUID):
-    query = delete(Chat).where(Chat.id == chat_id, Chat.user_id == user_id)
-    await session.execute(query)
+    query = select(Chat).where(Chat.id == chat_id, Chat.user_id == user_id)
+    result = await session.execute(query)
+    chat = result.scalar_one_or_none()
+
+    if chat is None:
+        raise HTTPException(
+            detail="Chat not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    await session.delete(chat)
     await session.commit()

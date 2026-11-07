@@ -1,7 +1,11 @@
 declare global {
   interface Window {
     Telegram?: {
-      WebApp?: Record<string, any>;
+      WebApp?: {
+        initData: string;
+        ready: () => void;
+        expand: () => void;
+      };
     };
   }
 }
@@ -25,8 +29,7 @@ export function setupTelegramMock(): void {
 
   const mockInitData = "dev_mock";
 
-  (window as any).Telegram = {
-    WebApp: {
+  const mockWebApp = {
       initData: mockInitData,
       initDataUnsafe: {
         user: mockUser,
@@ -51,8 +54,8 @@ export function setupTelegramMock(): void {
       },
       isExpanded: true,
       viewportHeight: window.innerHeight,
-    },
   };
+  window.Telegram = { WebApp: mockWebApp };
 
   console.warn(
     "[Telegram Mock] Environment initialized with mock Telegram WebApp data."

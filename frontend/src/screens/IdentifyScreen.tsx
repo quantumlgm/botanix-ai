@@ -1,7 +1,10 @@
-import { useState, useRef, useEffect, ChangeEvent } from "react";
+import { useState, useRef, useEffect } from "react";
+import type { ChangeEvent } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Camera, Loader2, Sparkles, AlertCircle, ArrowRight, RefreshCw } from "lucide-react";
 import { identifyPlant } from "../api/endpoints";
+import { getErrorMessage } from "../api/errors";
 import type { PlantIdentificationResult } from "../api/types";
 
 interface IdentifyScreenProps {
@@ -62,9 +65,12 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
       setError(null);
       const data = await identifyPlant(selectedFile);
       setResult(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(
-        err?.response?.data?.detail || "Ошибка при распознавании растения. Попробуйте другое фото."
+        getErrorMessage(
+          err,
+          "Ошибка при распознавании растения. Попробуйте другое фото."
+        )
       );
     } finally {
       setIsLoading(false);
@@ -173,8 +179,10 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
 
           {result.reply && (
             <div className="border-t border-slate-700/60 pt-3">
-              <div className="max-h-60 overflow-y-auto pr-1 text-xs leading-relaxed text-slate-300 space-y-2 [&>h2]:text-sm [&>h2]:font-bold [&>h2]:text-emerald-400 [&>h2]:mt-3 [&>h2]:mb-1 [&>ul]:list-disc [&>ul]:pl-4 [&>ul]:space-y-1 [&>p]:mb-2">
-                <ReactMarkdown>{result.reply}</ReactMarkdown>
+              <div className="max-h-60 overflow-y-auto overflow-x-auto pr-1 text-xs leading-relaxed text-slate-300 space-y-2 [&>h2]:text-sm [&>h2]:font-bold [&>h2]:text-emerald-400 [&>h2]:mt-3 [&>h2]:mb-1 [&>ul]:list-disc [&>ul]:pl-4 [&>ul]:space-y-1 [&>p]:mb-2 [&_strong]:font-bold [&_em]:italic [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-slate-600 [&_th]:bg-slate-700/60 [&_th]:px-2 [&_th]:py-1.5 [&_td]:border [&_td]:border-slate-700 [&_td]:px-2 [&_td]:py-1.5 [&_a]:text-emerald-400 [&_a]:underline">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {result.reply}
+                </ReactMarkdown>
               </div>
             </div>
           )}

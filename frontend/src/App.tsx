@@ -4,6 +4,7 @@ import { HomeScreen } from "./screens/HomeScreen";
 import { IdentifyScreen } from "./screens/IdentifyScreen";
 import { ChatScreen } from "./screens/ChatScreen";
 import { getProfile } from "./api/endpoints";
+import { getErrorMessage } from "./api/errors";
 import type { Screen } from "./types/navigation";
 import type { UserProfile } from "./api/types";
 
@@ -11,11 +12,16 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("home");
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
     getProfile()
       .then((data) => setUser(data))
-      .catch((err) => console.error("Failed to load profile:", err));
+      .catch((err: unknown) => {
+        setProfileError(
+          getErrorMessage(err, "Не удалось загрузить профиль пользователя")
+        );
+      });
   }, []);
 
   const handleOpenChat = (chatId: string) => {
@@ -23,11 +29,16 @@ function App() {
     setCurrentScreen("chat");
   };
 
+  const handleChatCreated = (chatId: string) => {
+    setActiveChatId(chatId);
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
       <Header
         currentScreen={currentScreen}
         user={user}
+        profileError={profileError}
         onBack={() => setCurrentScreen("home")}
       />
 
@@ -38,8 +49,12 @@ function App() {
             onOpenChat={handleOpenChat}
           />
         )}
-        {currentScreen === "identify" && <IdentifyScreen />}
-        {currentScreen === "chat" && <ChatScreen chatId={activeChatId} />}
+        {currentScreen === "identify" && (
+          <IdentifyScreen onOpenChat={handleOpenChat} />
+        )}
+        {currentScreen === "chat" && (
+          <ChatScreen chatId={activeChatId} onChatCreated={handleChatCreated} />
+        )}
       </main>
     </div>
   );
