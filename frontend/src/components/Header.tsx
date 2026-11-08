@@ -1,4 +1,4 @@
-import { ArrowLeft, User as UserIcon } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { Screen } from "../types/navigation";
 import type { UserProfile } from "../api/types";
 
@@ -20,22 +20,23 @@ export function Header({
   return (
     <header className="sticky top-0 z-10 flex h-14 w-full items-center justify-between border-b border-slate-800/80 bg-slate-900/80 px-4 backdrop-blur">
       {isHome ? (
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            <UserIcon className="h-5 w-5" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-white leading-tight">
-              {user?.first_name || (profileError ? "Профиль недоступен" : "Загрузка...")}
-            </span>
-            <span
-              className={
-                profileError ? "text-xs text-red-400" : "text-xs text-emerald-400"
-              }
-            >
-              {profileError ? "Не удалось загрузить профиль" : "Botanix AI готов к работе"}
-            </span>
-          </div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm font-semibold leading-tight text-white">
+            {user?.first_name || (profileError ? "Профиль недоступен" : "Загрузка...")}
+          </span>
+          <span
+            className={
+              profileError
+                ? "truncate text-xs text-red-400"
+                : "truncate text-xs text-emerald-400"
+            }
+          >
+            {profileError
+              ? "Не удалось загрузить профиль"
+              : user?.username
+                ? `@${user.username}`
+                : "Botanix AI готов к работе"}
+          </span>
         </div>
       ) : (
         <button
@@ -47,9 +48,11 @@ export function Header({
         </button>
       )}
 
-      <span className="text-xs font-semibold tracking-wider uppercase text-slate-500">
-        Botanix
-      </span>
+      <img
+        src="/big-logo.png"
+        alt="Botanix AI"
+        className="ml-3 h-7 w-auto max-w-[112px] shrink-0 object-contain sm:h-8"
+      />
     </header>
   );
 }

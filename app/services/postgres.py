@@ -26,8 +26,18 @@ class UuidId:
     )
 
 
-engine = create_async_engine(settings.pg_asyncpg_dsn)
-sync_engine = create_engine(settings.pg_psycopg_dsn)
+engine = create_async_engine(
+    settings.pg_asyncpg_dsn,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=5,
+)
+sync_engine = create_engine(
+    settings.pg_psycopg_dsn,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=5,
+)
 
 
 sessionmaker = async_sessionmaker(

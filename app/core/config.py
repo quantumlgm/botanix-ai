@@ -1,4 +1,4 @@
-from pydantic_core import MultiHostUrl, Url
+from pydantic_core import Url
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,7 +17,10 @@ class Settings(BaseSettings):
 
     BOT_TOKEN: str
 
-    DEBUG: bool = True
+    DEBUG: bool = False
+    CORS_ALLOWED_ORIGINS: str = (
+        "http://localhost:5173,http://127.0.0.1:5173"
+    )
 
     @property
     def pg_psycopg_dsn(self) -> str:
