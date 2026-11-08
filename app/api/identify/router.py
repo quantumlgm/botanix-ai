@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.service import create_chat
+from app.api.identify.schemas import PlantIdentifyResponse
 from app.api.identify.service import identify_service
 from app.api.users.models import User
 from app.api.users.service import get_current_user
@@ -17,10 +18,14 @@ router = APIRouter(prefix="/plants", tags=["Plants"])
 
 
 @router.post(
-    "/identify", status_code=status.HTTP_201_CREATED, summary="Identify your plant"
+    "/identify", 
+    response_model=PlantIdentifyResponse,
+    status_code=status.HTTP_201_CREATED, 
+    summary="Identify your plant"
 )
 @limiter.limit(RateLimit.LOW)
 async def identify_handle(
+    request: Request,
     question: str | None = Form(default=None),
     current_user: User = Depends(get_current_user),
     image: UploadFile = File(...),
@@ -49,4 +54,12 @@ async def identify_handle(
         session=session, chat_id=chat.id, user_id=current_user.id, message=user_message
     )
 
-    return {"chat_id": chat.id, "plant_data": plant_data.best_result, "reply": reply}
+    best = plant_data.best_result
+    return PlantIdentifyResponse(
+        chat_id=str(chat.id),
+        scientific_name=plant_data.scientific_name,
+        family_name=plant_data.family_name,
+        common_names=best.species.common_names if best else [],
+        confidence=best.score if best else 0.0,
+        reply=reply,
+    )

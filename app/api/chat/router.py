@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +42,7 @@ router = APIRouter(prefix="/chats", tags=["Chats"])
 )
 @limiter.limit(RateLimit.LOW)
 async def create_chat_handle(
+    request: Request,
     payload: UserMessageRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

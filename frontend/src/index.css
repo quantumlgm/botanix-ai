@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+body {
+  background-color: var(--tg-theme-bg-color, #0f172a);
+  color: var(--tg-theme-text-color, #ffffff);
+  min-height: 100vh;
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
