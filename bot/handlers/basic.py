@@ -1,9 +1,5 @@
-
-
-import textwrap
-
-from aiogram import Bot, Router, F
-from aiogram.filters import CommandStart
+from aiogram import Router, F
+from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from bot.core.helpers import safe_edit_text
@@ -32,3 +28,11 @@ async def info_handler(callback: CallbackQuery):
 async def back_to_main_handler(callback: CallbackQuery):
     await safe_edit_text(callback, MAIN_MENU_TEXT, start_keyboard())
     await callback.answer()
+
+
+@router.message(Command("help"))
+async def help_command_handler(message: Message):
+    await message.answer(
+        text=INFO_TEXT,
+        reply_markup=back_to_main_keyboard()
+    )
