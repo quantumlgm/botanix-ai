@@ -8,4 +8,4 @@ class BotSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-settings = BotSettings()
+settings = BotSettings() 

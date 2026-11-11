@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import time
 
 import uvicorn
@@ -94,7 +95,7 @@ async def start_app():
     config = uvicorn.Config(
         app=app,
         host="0.0.0.0",
-        port=8000,
+        port=int(os.getenv("PORT", 8000)),
         log_level="info",
         proxy_headers=True,
         forwarded_allow_ips="*",
