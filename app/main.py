@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 
@@ -11,6 +12,8 @@ from app.api.identify.router import router as identify_router
 from app.api.users.router import router as user_router
 from app.core.config import settings
 from app.services.limiter import limiter
+from bot.main import main as bot_main
+
 
 logger = logging.getLogger("app.request")
 api = FastAPI()
@@ -87,5 +90,29 @@ cors_app = CORSMiddleware(
 app = RequestLoggingMiddleware(cors_app)
 
 
+async def start_app():
+    config = uvicorn.Config(
+        app=app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+    )
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+async def start_bot():
+    await bot_main()
+
+
+async def main():
+    await asyncio.gather(
+        start_app(),
+        start_bot()
+    )
+
+
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    asyncio.run(main())
