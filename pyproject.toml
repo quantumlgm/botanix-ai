@@ -23,6 +23,7 @@ dependencies = [
     "ruff>=0.17.3",
     "slowapi>=0.1.10",
     "sqlalchemy[asyncio]>=2.1.6",
+    "telegramify-markdown>=1.4.2",
     "uvicorn>=0.54.0",
 ]
 
