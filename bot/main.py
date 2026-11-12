@@ -7,6 +7,7 @@ from aiogram.enums import ParseMode
 from bot.core.commands import set_bot_commands
 from bot.core.config import settings
 from bot.handlers.basic import router as basic_router
+from bot.handlers.identify import router as indetify_router
 
 
 async def main() -> None:
@@ -18,6 +19,7 @@ async def main() -> None:
     dp = Dispatcher()
 
     dp.include_router(basic_router)
+    dp.include_router(indetify_router)
     
     await set_bot_commands(bot)
 
