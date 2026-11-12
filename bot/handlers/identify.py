@@ -3,7 +3,7 @@ from aiogram.enums import ParseMode
 from app.core.config import settings
 
 import io
-from aiogram import Bot, Router
+from aiogram import F, Bot, Router
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 import httpx
 
@@ -46,28 +46,44 @@ async def photo_handler(message: Message, bot: Bot):
             response.raise_for_status()
             result = response.json()
 
-    formatted_text = build_plant_markdown(result)
-    chat_id = result.get("chat_id", "")
+        formatted_text = build_plant_markdown(result)
+        chat_id = result.get("chat_id", "")
 
-    app_url = (
-        f"https://botanix-frontend.onrender.com?chat_id={chat_id}"
-        if chat_id
-        else "https://botanix-frontend.onrender.com"
-    )
+        app_url = (
+            f"https://botanix-frontend.onrender.com?chat_id={chat_id}"
+            if chat_id
+            else "https://botanix-frontend.onrender.com"
+        )
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="💬 Продолжить диалог в приложении",
-                    web_app=WebAppInfo(url=app_url),
-                )
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="💬 Продолжить диалог в приложении",
+                        web_app=WebAppInfo(url=app_url),
+                    )
+                ]
             ]
-        ]
-    )
+        )
 
-    await status_msg.edit_text(
-        text=formatted_text,
-        parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=keyboard,
-    )
+        await status_msg.edit_text(
+            text=formatted_text,
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=keyboard,
+        )
+    except httpx.HTTPStatusError as e:
+        detail = "Ошибка сервера при распознавании. Попробуйте позже."
+        if e.response.status_code in (400, 422, 429):
+            try:
+                detail = e.response.json().get("detail", detail)
+            except Exception:
+                pass
+        await status_msg.edit_text(f"❌ {detail}")
+    except httpx.TimeoutException:
+        await status_msg.edit_text(
+            "⏳ Сервер слишком долго отвечает (возможно, просыпается). Попробуйте отправить фото ещё раз через минуту."
+        )
+    except Exception:
+        await status_msg.edit_text(
+            "❌ Не удалось распознать растение. Попробуйте сделать более чёткий снимок."
+        )
