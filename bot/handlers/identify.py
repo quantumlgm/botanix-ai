@@ -1,4 +1,6 @@
-from aiogram.enums import ParseMode
+import textwrap
+
+from aiogram.enums import ChatAction, ParseMode
 
 from app.core.config import settings
 
@@ -8,9 +10,13 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, W
 import httpx
 
 from bot.core.helpers import build_plant_markdown
+from bot.core.texts import GENERATION_WARNING
 
 
 router = Router(name="identify")
+
+
+processing_users = set()
 
 
 @router.message(F.photo)
@@ -18,7 +24,17 @@ async def photo_handler(message: Message, bot: Bot):
     if not message.from_user or not message.photo:
         return
 
-    status_msg = await message.answer("🔍 Определение растения...")
+    user_id = message.from_user.id
+    if user_id in processing_users:
+        if not message.media_group_id:
+            await message.answer("⏳ Я ещё анализирую предыдущее фото, подождите пару секунд...")        
+        return
+
+    processing_users.add(user_id)
+
+    status_msg = await message.answer(GENERATION_WARNING)
+    await bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+
     headers = {
         "X-Bot-Secret": settings.BOT_INTERNAL_SECRET,
         "X-Telegram-User-Id": str(message.from_user.id),
@@ -87,3 +103,5 @@ async def photo_handler(message: Message, bot: Bot):
         await status_msg.edit_text(
             "❌ Не удалось распознать растение. Попробуйте сделать более чёткий снимок."
         )
+    finally:
+        processing_users.discard(user_id)
