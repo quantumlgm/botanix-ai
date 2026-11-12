@@ -16,6 +16,7 @@ class AppSettings(BaseSettings):
     POSTGRES_PORT: int
 
     BOT_TOKEN: str
+    BOT_INTERNAL_SECRET: str
 
     DEBUG: bool = False
     CORS_ALLOWED_ORIGINS: str = (
