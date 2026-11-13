@@ -40,7 +40,7 @@ async def warn_single_photo(message: Message) -> None:
         return
 
     warning_cooldowns[key] = now
-    await message.answer("Пожалуйста, отправьте одно фото растения, не альбом и не файлом.")
+    await message.answer("⚠️ Пожалуйста, отправьте одно фото растения, не альбом и не файлом.")
 
 
 @router.message(F.document)
