@@ -67,7 +67,9 @@ async def create_chat_handle(
     status_code=status.HTTP_201_CREATED,
     summary="Start a new text chat",
 )
+@limiter.limit(RateLimit.MEDIUM)
 async def send_message_handle(
+    request: Request,
     chat_id: UUID,
     payload: UserMessageRequest,
     current_user: User = Depends(get_current_user),
@@ -83,7 +85,9 @@ async def send_message_handle(
 
 
 @router.post("/{chat_id}/stream", summary="Stream chat message reply")
+@limiter.limit(RateLimit.MEDIUM)
 async def send_message_stream_handle(
+    request: Request,
     chat_id: UUID,
     payload: ChatAskRequest,
     current_user: User = Depends(get_current_user),
