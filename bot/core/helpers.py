@@ -1,5 +1,17 @@
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 import telegramify_markdown
-from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+
+from bot.core.config import settings
+
+
+def build_web_app_url(chat_id: str | None = None) -> str:
+    parts = urlsplit(settings.WEB_APP_URL)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    if chat_id:
+        query.append(("chat_id", chat_id))
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 async def safe_edit_text(

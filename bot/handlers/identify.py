@@ -5,13 +5,11 @@ import httpx
 from aiogram import Bot, F, Router
 from aiogram.enums import ChatAction, ParseMode
 from aiogram.types import Message
-from fastapi import UploadFile
-from starlette.datastructures import Headers
 
 from app.core.config import settings
-from app.services.images.exceptions import ImageExtensionError, ImageWeightError
-from app.services.images.service import MAX_IMAGE_SIZE, image_validate
-from bot.core.helpers import build_plant_markdown
+from app.services.images.service import MAX_IMAGE_SIZE
+from bot.core.config import settings as bot_settings
+from bot.core.helpers import build_plant_markdown, build_web_app_url
 from bot.core.texts import GENERATION_WARNING
 from bot.keyboards.identify import continue_in_app_keyboard
 
@@ -96,7 +94,7 @@ async def photo_handler(message: Message, bot: Bot):
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                "https://botanix-ai-95rv.onrender.com/plants/identify",
+                f"{bot_settings.BACKEND_URL.rstrip('/')}/plants/identify",
                 files=files,
                 data=data,
                 headers=headers,
@@ -107,11 +105,7 @@ async def photo_handler(message: Message, bot: Bot):
         formatted_text = build_plant_markdown(result)
         chat_id = result.get("chat_id", "")
 
-        app_url = (
-            f"https://botanix-frontend.onrender.com?chat_id={chat_id}"
-            if chat_id
-            else "https://botanix-frontend.onrender.com"
-        )
+        app_url = build_web_app_url(chat_id=chat_id)
 
         await status_msg.edit_text(
             text=formatted_text,
