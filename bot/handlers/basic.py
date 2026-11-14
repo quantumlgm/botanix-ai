@@ -38,6 +38,6 @@ async def help_command_handler(message: Message):
     )
 
 
-@router.message(~F.photo & ~F.media_group_id)
+@router.message(~F.photo & ~F.document & ~F.media_group_id)
 async def message_handle(message: Message):
     await message.answer("📸 Пришлите фото растения, чтобы я смог его распознать. Текст, стикеры, голосовые и видео я пока не понимаю.")

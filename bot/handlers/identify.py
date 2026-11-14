@@ -40,22 +40,21 @@ async def warn_single_photo(message: Message) -> None:
         return
 
     warning_cooldowns[key] = now
-    await message.answer("⚠️ Пожалуйста, отправьте одно фото растения, не альбом и не файлом.")
+    await message.answer("⚠️ Пожалуйста, отправьте одно фото растения, а не альбом.")
 
 
-@router.message(F.document)
-async def document_handler(message: Message):
-    await warn_single_photo(message)
-
-
-@router.message(F.photo)
+@router.message(F.photo | F.document)
 async def photo_handler(message: Message, bot: Bot):
-    if not message.from_user or not message.photo:
+    if not message.from_user:
         return
-
+    
     if message.media_group_id:
         await warn_single_photo(message)
         return
+    
+    media = message.photo[-1] if message.photo else message.document
+    if not media:
+        return    
 
     user_id = message.from_user.id
     if user_id in processing_users:
@@ -67,43 +66,32 @@ async def photo_handler(message: Message, bot: Bot):
         status_msg = await message.answer(GENERATION_WARNING)
         await bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
+        if media.file_size and media.file_size > MAX_IMAGE_SIZE:
+            await status_msg.edit_text(
+                "❌ Фото слишком большое. Отправьте изображение размером не более 5 МБ."
+            )
+            return
+        mime_type = (
+            message.document.mime_type
+            if message.document and message.document.mime_type
+            else "image/jpeg"
+        )
+        ext = mime_type.split("/")[-1]
+        filename = f"tg_{media.file_unique_id}.{ext}"
+
+
+        file_buffer = io.BytesIO()
+        await bot.download(file=media, destination=file_buffer)
+        file_buffer.seek(0)
+        
         headers = {
             "X-Bot-Secret": settings.BOT_INTERNAL_SECRET,
             "X-Telegram-User-Id": str(message.from_user.id),
             "X-Telegram-First-Name": message.from_user.first_name or "",
             "X-Telegram-Username": message.from_user.username or "",
         }
-        photo = message.photo[-1]
-        filename = f"tg_{photo.file_unique_id}.jpg"
-        if photo.file_size and photo.file_size > MAX_IMAGE_SIZE:
-            await status_msg.edit_text(
-                "❌ Фото слишком большое. Отправьте изображение размером не более 5 МБ."
-            )
-            return
 
-        file_buffer = io.BytesIO()
-        await bot.download(file=photo, destination=file_buffer)
-        file_buffer.seek(0)
-
-        uploaded_image = UploadFile(
-            file=file_buffer,
-            filename=filename,
-            headers=Headers({"content-type": "image/jpeg"}),
-        )
-        try:
-            image_bytes = await image_validate(image=uploaded_image)
-        except ImageWeightError:
-            await status_msg.edit_text(
-                "❌ Фото слишком большое. Отправьте изображение размером не более 5 МБ."
-            )
-            return
-        except ImageExtensionError:
-            await status_msg.edit_text(
-                "❌ Не удалось проверить фото. Отправьте изображение в формате JPG, PNG или WebP."
-            )
-            return
-
-        files = {"image": (filename, image_bytes, "image/jpeg")}
+        files = {"image": (filename, file_buffer, mime_type)}
         data = {"question": message.caption} if message.caption else {}
 
         async with httpx.AsyncClient(timeout=60.0) as client:
