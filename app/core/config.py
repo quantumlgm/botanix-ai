@@ -2,7 +2,7 @@ from pydantic_core import Url
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
+class AppSettings(BaseSettings):
     IDENTIFIER_API_URL: str = "https://my-api.plantnet.org/v2/identify/all"
     IDENTIFIER_API_KEY: str
     PROVIDER_API_KEY: str
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int
 
     BOT_TOKEN: str
+    BOT_INTERNAL_SECRET: str
 
     DEBUG: bool = False
     CORS_ALLOWED_ORIGINS: str = (
@@ -51,4 +52,4 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-settings = Settings()
+settings = AppSettings()

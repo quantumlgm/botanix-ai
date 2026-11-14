@@ -1,4 +1,5 @@
 import logging
+import secrets
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request, status
@@ -10,6 +11,8 @@ from app.api.users.models import User
 from app.api.users.schemas import TelegramUserPayload
 from app.core.security import validate_init_data
 from app.services.postgres import get_session
+from app.core.config import settings
+
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +51,39 @@ async def get_current_user(
     x_telegram_init_data: Annotated[
         str | None, Header(alias="X-Telegram-Init-Data")
     ] = None,
+    x_bot_secret: Annotated[
+        str | None, Header(alias="X-Bot-Secret")
+    ] = None,
+    x_telegram_user_id: Annotated[
+        int | None, Header(alias="X-Telegram-User-Id")
+    ] = None,
 ) -> User:
+    if x_bot_secret is not None:
+        if not secrets.compare_digest(
+            x_bot_secret, settings.BOT_INTERNAL_SECRET
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid bot secret",
+            )
+
+        if not x_telegram_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing X-Telegram-User-Id header",
+            )
+
+        user_payload = TelegramUserPayload(
+            telegram_id=x_telegram_user_id,
+            first_name=request.headers.get("X-Telegram-First-Name", "Telegram User"),
+            username=request.headers.get("X-Telegram-Username"),
+        )
+        user = await get_or_create_user(session=session, payload=user_payload)
+        request.state.user_id = str(user.id)
+        return user
+
+    
     if not x_telegram_init_data:
-        logger.warning("Authentication rejected: missing X-Telegram-Init-Data")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing X-Telegram-Init-Data header",
