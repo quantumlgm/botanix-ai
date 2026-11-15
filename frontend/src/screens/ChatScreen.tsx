@@ -5,7 +5,7 @@ import { AlertCircle, Bot, Loader2, Send, Sparkles, User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createChat, getChatMessages, streamChatMessage } from "../api/endpoints";
-import { getErrorMessage } from "../api/errors";
+import { getErrorMessage, isApiError } from "../api/errors";
 import type { ChatMessage } from "../api/types";
 
 type HistoryState = "loading" | "ready" | "error";
@@ -23,6 +23,7 @@ function normalizeChatId(chatId: string | null): string | null {
 }
 
 function getHttpStatus(error: unknown): number | undefined {
+  if (isApiError(error)) return error.status;
   return isAxiosError(error) ? error.response?.status : undefined;
 }
 
@@ -82,6 +83,14 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
   const skipHistoryLoadForRef = useRef<string | null>(null);
   const historyRequestIdRef = useRef(0);
   const streamedTextRef = useRef("");
+  const requestAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      requestAbortRef.current?.abort();
+      requestAbortRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentChatId) return;
@@ -93,14 +102,16 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
 
     historyRequestIdRef.current += 1;
     const requestId = historyRequestIdRef.current;
+    const controller = new AbortController();
 
     setMessages([]);
     setHistoryState("loading");
     setHistoryError(null);
     setHistoryFatal(false);
 
-    getChatMessages(currentChatId)
+    getChatMessages(currentChatId, { signal: controller.signal })
       .then((data) => {
+        if (controller.signal.aborted) return;
         if (historyRequestIdRef.current !== requestId) return;
         setMessages(
           data.map((message) => ({
@@ -112,6 +123,7 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
         setHistoryState("ready");
       })
       .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
         if (historyRequestIdRef.current !== requestId) return;
         const { message, fatal } = getHistoryErrorMessage(err);
         setHistoryError(message);
@@ -120,6 +132,7 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
       });
 
     return () => {
+      controller.abort();
       historyRequestIdRef.current += 1;
     };
   }, [currentChatId, reloadKey]);
@@ -157,6 +170,9 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
     isNearBottomRef.current = true;
     streamedTextRef.current = "";
 
+    const controller = new AbortController();
+    requestAbortRef.current = controller;
+
     const userMessageId = crypto.randomUUID();
     const assistantMessageId = crypto.randomUUID();
     const tempUserMessage: UiChatMessage = {
@@ -184,7 +200,10 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
       let targetChatId = currentChatId;
 
       if (!targetChatId) {
-        const newChat = await createChat(trimmed);
+        const newChat = await createChat(trimmed, {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
         const createdChatId = newChat.chat_id;
         streamedTextRef.current = newChat.reply;
         skipHistoryLoadForRef.current = createdChatId;
@@ -209,20 +228,28 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
         return;
       }
 
-      await streamChatMessage(targetChatId, trimmed, (chunk) => {
-        streamedTextRef.current += chunk;
-        setMessages((previous) =>
-          previous.map((message) =>
-            message.id === assistantMessageId
-              ? {
-                  ...message,
-                  content: message.content + chunk,
-                  status: undefined,
-                }
-              : message
-          )
-        );
-      });
+      await streamChatMessage(
+        targetChatId,
+        trimmed,
+        (chunk) => {
+          if (controller.signal.aborted) return;
+          streamedTextRef.current += chunk;
+          setMessages((previous) =>
+            previous.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    content: message.content + chunk,
+                    status: undefined,
+                  }
+                : message
+            )
+          );
+        },
+        { signal: controller.signal }
+      );
+
+      if (controller.signal.aborted) return;
 
       if (!streamedTextRef.current.trim()) {
         setMessages((previous) =>
@@ -231,6 +258,8 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
         setError("Модель не вернула ответ. Попробуйте ещё раз.");
       }
     } catch (err: unknown) {
+      if (controller.signal.aborted) return;
+
       if (streamedTextRef.current.trim()) {
         setMessages((previous) =>
           previous.map((message) =>
@@ -246,8 +275,13 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
       }
       setError(getErrorMessage(err, "Ошибка при передаче сообщения"));
     } finally {
+      if (requestAbortRef.current === controller) {
+        requestAbortRef.current = null;
+      }
       sendingRef.current = false;
-      setIsSending(false);
+      if (!controller.signal.aborted) {
+        setIsSending(false);
+      }
     }
   };
 
