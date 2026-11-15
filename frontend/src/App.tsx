@@ -55,7 +55,13 @@ function App({ initialChatId = null }: AppProps) {
         onBack={handleBack}
       />
 
-      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <main
+        className={
+          currentScreen === "chat"
+            ? "min-h-0 flex-1 overflow-hidden"
+            : "min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        }
+      >
         {currentScreen === "home" && (
           <HomeScreen
             onNavigateToIdentify={() => setCurrentScreen("identify")}

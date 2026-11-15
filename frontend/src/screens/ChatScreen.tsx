@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { AlertCircle, Bot, Loader2, Send, Sparkles, User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -23,7 +23,9 @@ export function ChatScreen({ chatId, onChatCreated }: ChatScreenProps) {
   );
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const isNearBottomRef = useRef(true);
 
   useEffect(() => {
     if (!currentChatId) return;
@@ -58,13 +60,32 @@ export function ChatScreen({ chatId, onChatCreated }: ChatScreenProps) {
     };
   }, [currentChatId]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || !isNearBottomRef.current) return;
+    container.scrollTop = container.scrollHeight;
   }, [messages, isSending]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 96)}px`;
+  }, [inputValue]);
+
+  const handleMessagesScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceToBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    isNearBottomRef.current = distanceToBottom < 80;
+  };
 
   const handleSend = async () => {
     const trimmed = inputValue.trim();
     if (!trimmed || isSending) return;
+
+    isNearBottomRef.current = true;
 
     const userMessageId = crypto.randomUUID();
     const assistantMessageId = crypto.randomUUID();
@@ -129,15 +150,19 @@ export function ChatScreen({ chatId, onChatCreated }: ChatScreenProps) {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       void handleSend();
     }
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-md flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+    <div className="mx-auto flex h-full max-w-md flex-col">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleMessagesScroll}
+        className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4"
+      >
         {isLoading && (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-400">
             <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
@@ -190,9 +215,11 @@ export function ChatScreen({ chatId, onChatCreated }: ChatScreenProps) {
                 }`}
               >
                 {isUser ? (
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <p className="whitespace-pre-wrap break-words">
+                    {message.content}
+                  </p>
                 ) : message.content ? (
-                <div className="overflow-x-auto [&_a]:text-emerald-400 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-slate-500 [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-slate-900/70 [&_code]:px-1 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-slate-900/70 [&_pre]:p-2 [&_strong]:font-bold [&_em]:italic [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-slate-600 [&_th]:bg-slate-700/60 [&_th]:px-2 [&_th]:py-1.5 [&_td]:border [&_td]:border-slate-700 [&_td]:px-2 [&_td]:py-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
+                <div className="overflow-x-auto break-words [&_a]:text-emerald-400 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-slate-500 [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-slate-900/70 [&_code]:px-1 [&_img]:h-auto [&_img]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-slate-900/70 [&_pre]:p-2 [&_strong]:font-bold [&_em]:italic [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-slate-600 [&_th]:bg-slate-700/60 [&_th]:px-2 [&_th]:py-1.5 [&_td]:border [&_td]:border-slate-700 [&_td]:px-2 [&_td]:py-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {message.content}
                   </ReactMarkdown>
@@ -217,20 +244,22 @@ export function ChatScreen({ chatId, onChatCreated }: ChatScreenProps) {
             <span>{error}</span>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-slate-800 bg-slate-900/90 p-3 backdrop-blur">
+      <div className="safe-bottom-composer shrink-0 border-t border-slate-800 bg-slate-900/90 p-3 backdrop-blur">
         <div className="flex items-end gap-2 rounded-2xl border border-slate-700 bg-slate-800/60 p-1.5 transition-colors focus-within:border-emerald-500/60">
           <textarea
+            ref={textareaRef}
             value={inputValue}
             onChange={(event) => setInputValue(event.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Напишите вопрос..."
             rows={1}
+            maxLength={700}
+            enterKeyHint="send"
+            aria-label="Сообщение"
             disabled={isSending || isLoading}
-            className="max-h-24 flex-1 resize-none bg-transparent px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none"
+            className="max-h-24 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-1.5 text-base leading-5 text-white placeholder-slate-500 focus:outline-none sm:text-sm"
           />
           <button
             type="button"
