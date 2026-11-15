@@ -47,7 +47,7 @@ function App({ initialChatId = null }: AppProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col">
+    <div className="flex h-full flex-col overflow-hidden bg-slate-900 text-white">
       <Header
         currentScreen={currentScreen}
         user={user}
@@ -55,7 +55,7 @@ function App({ initialChatId = null }: AppProps) {
         onBack={handleBack}
       />
 
-      <main className="flex-1">
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {currentScreen === "home" && (
           <HomeScreen
             onNavigateToIdentify={() => setCurrentScreen("identify")}
