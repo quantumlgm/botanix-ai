@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { isAxiosError } from "axios";
 import {
   AlertCircle,
   Camera,
@@ -22,45 +23,103 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [confirmDeleteChatId, setConfirmDeleteChatId] = useState<string | null>(
+    null
+  );
+  const [reloadKey, setReloadKey] = useState(0);
+  const deleteAbortRef = useRef<AbortController | null>(null);
+
+  const loadChats = useCallback(async (signal: AbortSignal) => {
+    try {
+      const data = await getChats({ signal });
+      if (signal.aborted) return;
+      setChats(data);
+    } catch (err: unknown) {
+      if (signal.aborted) return;
+      setLoadError(
+        getErrorMessage(err, "Не удалось загрузить список диалогов")
+      );
+    } finally {
+      if (!signal.aborted) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
+    const controller = new AbortController();
 
-    getChats()
-      .then((data) => {
-        if (isMounted) setChats(data);
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          setError(getErrorMessage(err, "Не удалось загрузить список диалогов"));
-        }
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    const load = async () => {
+      await loadChats(controller.signal);
+    };
+
+    void load();
 
     return () => {
-      isMounted = false;
+      controller.abort();
+    };
+  }, [loadChats, reloadKey]);
+
+  useEffect(() => {
+    return () => {
+      deleteAbortRef.current?.abort();
+      deleteAbortRef.current = null;
     };
   }, []);
 
+  const removeChat = (chatId: string) => {
+    setChats((currentChats) =>
+      currentChats.filter((chat) => chat.id !== chatId)
+    );
+  };
+
   const handleDeleteChat = async (chatId: string) => {
+    if (deletingChatId !== null) return;
+
+    setConfirmDeleteChatId(null);
     setDeletingChatId(chatId);
-    setError(null);
+    setDeleteError(null);
+
+    const controller = new AbortController();
+    deleteAbortRef.current = controller;
+
     try {
-      await deleteChat(chatId);
-      setChats((currentChats) => currentChats.filter((chat) => chat.id !== chatId));
+      await deleteChat(chatId, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      removeChat(chatId);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, "Не удалось удалить диалог"));
+      if (controller.signal.aborted) return;
+
+      if (isAxiosError(err) && err.response?.status === 404) {
+        removeChat(chatId);
+        return;
+      }
+
+      setDeleteError(getErrorMessage(err, "Не удалось удалить диалог"));
     } finally {
-      setDeletingChatId(null);
+      if (deleteAbortRef.current === controller) {
+        deleteAbortRef.current = null;
+      }
+      if (!controller.signal.aborted) {
+        setDeletingChatId(null);
+      }
     }
   };
 
+  const handleRetry = () => {
+    setDeleteError(null);
+    setLoadError(null);
+    setIsLoading(true);
+    setReloadKey((key) => key + 1);
+  };
+
+  const errorMessage = loadError ?? deleteError;
+
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-5 p-4">
+    <div className="safe-bottom mx-auto flex max-w-md flex-col gap-5 p-4">
       <div className="flex flex-col gap-3">
         <button
           type="button"
@@ -90,13 +149,25 @@ export function HomeScreen({
       <section>
         <h1 className="mb-3 text-sm font-semibold text-slate-300">Ваши диалоги</h1>
 
-        {error && (
+        {errorMessage && (
           <div
             role="alert"
-            className="mb-3 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400"
+            className="mb-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400"
           >
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <span>{errorMessage}</span>
+              {loadError && (
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  disabled={isLoading}
+                  className="h-10 self-start rounded-lg border border-red-400/40 px-4 font-medium text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Повторить
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -105,7 +176,7 @@ export function HomeScreen({
             <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
             <span className="text-xs">Загрузка диалогов...</span>
           </div>
-        ) : chats.length === 0 && !error ? (
+        ) : chats.length === 0 && !loadError ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl border border-slate-800 bg-slate-800/30 p-8 text-center">
             <MessageCircle className="h-7 w-7 text-emerald-400" />
             <p className="text-sm text-slate-200">Пока нет диалогов</p>
@@ -115,41 +186,75 @@ export function HomeScreen({
           </div>
         ) : chats.length > 0 ? (
           <ul className="flex flex-col gap-2">
-            {chats.map((chat) => (
-              <li
-                key={chat.id}
-                className="flex items-center gap-1 rounded-2xl border border-slate-800 bg-slate-800/40 p-1 transition hover:border-emerald-500/40"
-              >
-                <button
-                  type="button"
-                  onClick={() => onOpenChat(chat.id)}
-                  className="flex min-w-0 flex-1 items-center gap-3 p-2 text-left"
+            {chats.map((chat) => {
+              const isConfirming = confirmDeleteChatId === chat.id;
+              const isDeleting = deletingChatId === chat.id;
+
+              return (
+                <li
+                  key={chat.id}
+                  className="flex items-center gap-1 rounded-2xl border border-slate-800 bg-slate-800/40 p-1 transition hover:border-emerald-500/40"
                 >
-                  <MessageCircle className="h-5 w-5 shrink-0 text-emerald-400" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-slate-200">
-                      {chat.title || "Диалог о растении"}
-                    </span>
-                    <span className="block truncate text-xs text-slate-500">
-                      {chat.plant_context || new Date(chat.created_at).toLocaleDateString("ru-RU")}
-                    </span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  aria-label="Удалить диалог"
-                  disabled={deletingChatId !== null}
-                  onClick={() => void handleDeleteChat(chat.id)}
-                  className="rounded-lg p-2 text-slate-500 transition hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
-                >
-                  {deletingChatId === chat.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                  {isConfirming ? (
+                    <div className="flex min-w-0 flex-1 items-center gap-2 py-0.5 pl-2">
+                      <span className="min-w-0 flex-1 truncate text-sm text-slate-200">
+                        Удалить диалог?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteChat(chat.id)}
+                        disabled={deletingChatId !== null}
+                        className="h-10 shrink-0 rounded-lg bg-red-500/15 px-3 text-xs font-medium text-red-300 transition hover:bg-red-500/25 disabled:opacity-50"
+                      >
+                        Удалить
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteChatId(null)}
+                        className="h-10 shrink-0 rounded-lg px-3 text-xs font-medium text-slate-300 transition hover:bg-slate-700/60"
+                      >
+                        Отмена
+                      </button>
+                    </div>
                   ) : (
-                    <Trash2 className="h-4 w-4" />
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onOpenChat(chat.id)}
+                        disabled={isDeleting}
+                        className="flex min-w-0 flex-1 items-center gap-3 p-2 text-left disabled:opacity-60"
+                      >
+                        <MessageCircle className="h-5 w-5 shrink-0 text-emerald-400" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-slate-200">
+                            {chat.title || "Диалог о растении"}
+                          </span>
+                          <span className="block truncate text-xs text-slate-500">
+                            {chat.plant_context ||
+                              new Date(chat.created_at).toLocaleDateString(
+                                "ru-RU"
+                              )}
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Удалить диалог"
+                        disabled={deletingChatId !== null}
+                        onClick={() => setConfirmDeleteChatId(chat.id)}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-5 w-5" />
+                        )}
+                      </button>
+                    </>
                   )}
-                </button>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         ) : null}
       </section>
