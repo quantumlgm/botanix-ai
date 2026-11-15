@@ -72,7 +72,11 @@ function App({ initialChatId = null }: AppProps) {
           <IdentifyScreen onOpenChat={handleOpenChat} />
         )}
         {currentScreen === "chat" && (
-          <ChatScreen chatId={activeChatId} onChatCreated={handleChatCreated} />
+          <ChatScreen
+            chatId={activeChatId}
+            onChatCreated={handleChatCreated}
+            onBack={handleBack}
+          />
         )}
       </main>
     </div>
