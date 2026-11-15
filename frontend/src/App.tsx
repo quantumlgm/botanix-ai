@@ -8,9 +8,17 @@ import { getErrorMessage } from "./api/errors";
 import type { Screen } from "./types/navigation";
 import type { UserProfile } from "./api/types";
 
-function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>("home");
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+interface AppProps {
+  initialChatId?: string | null;
+}
+
+function App({ initialChatId = null }: AppProps) {
+  const [currentScreen, setCurrentScreen] = useState<Screen>(
+    initialChatId ? "chat" : "home"
+  );
+  const [activeChatId, setActiveChatId] = useState<string | null>(
+    initialChatId
+  );
   const [user, setUser] = useState<UserProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -33,13 +41,18 @@ function App() {
     setActiveChatId(chatId);
   };
 
+  const handleBack = () => {
+    setCurrentScreen("home");
+    setActiveChatId(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
       <Header
         currentScreen={currentScreen}
         user={user}
         profileError={profileError}
-        onBack={() => setCurrentScreen("home")}
+        onBack={handleBack}
       />
 
       <main className="flex-1">
