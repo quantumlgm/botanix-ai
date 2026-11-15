@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Header } from "./components/Header";
 import { HomeScreen } from "./screens/HomeScreen";
 import { IdentifyScreen } from "./screens/IdentifyScreen";
@@ -22,6 +22,11 @@ function App({ initialChatId = null }: AppProps) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  const handleBack = useCallback(() => {
+    setCurrentScreen("home");
+    setActiveChatId(null);
+  }, []);
+
   useEffect(() => {
     getProfile()
       .then((data) => setUser(data))
@@ -32,6 +37,27 @@ function App({ initialChatId = null }: AppProps) {
       });
   }, []);
 
+  useEffect(() => {
+    const backButton = window.Telegram?.WebApp?.BackButton;
+
+    if (!backButton) {
+      return;
+    }
+
+    if (currentScreen === "home") {
+      backButton.hide();
+      return;
+    }
+
+    backButton.onClick(handleBack);
+    backButton.show();
+
+    return () => {
+      backButton.offClick(handleBack);
+      backButton.hide();
+    };
+  }, [currentScreen, handleBack]);
+
   const handleOpenChat = (chatId: string) => {
     setActiveChatId(chatId);
     setCurrentScreen("chat");
@@ -39,11 +65,6 @@ function App({ initialChatId = null }: AppProps) {
 
   const handleChatCreated = (chatId: string) => {
     setActiveChatId(chatId);
-  };
-
-  const handleBack = () => {
-    setCurrentScreen("home");
-    setActiveChatId(null);
   };
 
   return (
