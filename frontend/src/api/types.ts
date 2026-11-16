@@ -38,8 +38,6 @@ export interface PlantIdentificationResult {
   reply: string;
 }
 
-export type Screen = 'home' | 'identify' | 'chat';
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

@@ -33,3 +33,6 @@ build-backend = "uv_build"
 
 [tool.uv]
 package = false
+
+[tool.pyright]
+typeCheckingMode = "standard"

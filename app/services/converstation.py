@@ -1,9 +1,10 @@
+import json
 from collections.abc import AsyncGenerator, Sequence
 from typing import Any
 from uuid import UUID
 
-from fastapi import HTTPException, status
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.models import ChatMessage
@@ -20,6 +21,8 @@ client = AsyncOpenAI(
         "X-Title": "Botanix AI",
     },
 )
+
+LLM_HISTORY_LIMIT = 10
 
 
 async def create_message(
@@ -43,7 +46,9 @@ async def send_message_flow(
         session=session, chat_id=chat_id, role=Roles.USER, content=message
     )
 
-    history = await get_chat_messages(session=session, chat_id=chat_id)
+    history = await get_chat_messages(
+        session=session, chat_id=chat_id, limit=LLM_HISTORY_LIMIT
+    )
 
     ai_reply = await generate_expert_reply(
         history=history, plant_context=chat_record.plant_context
@@ -69,7 +74,10 @@ async def generate_expert_reply(
         llm_messages.append({"role": msg.role, "content": msg.content})
 
     response = await client.chat.completions.create(
-        model=settings.MODEL_NAME, messages=llm_messages, temperature=0.3
+        model=settings.MODEL_NAME,
+        messages=llm_messages,
+        temperature=0.3,
+        frequency_penalty=0.2,
     )
     choice = response.choices[0]
     return choice.message.content or "Не удалось получить ответ от модели."
@@ -92,6 +100,7 @@ async def stream_expert_reply(
         messages=llm_messages,
         temperature=0.3,
         stream=True,
+        frequency_penalty=0.2,
     )
 
     async for chunk in response_stream:
@@ -100,31 +109,45 @@ async def stream_expert_reply(
 
 
 async def send_message_stream_flow(
-    session: AsyncSession, user_id: UUID, chat_id: UUID, message: str
+    session: AsyncSession,
+    chat_id: UUID,
+    plant_context: str | None,
+    message: str,
 ) -> AsyncGenerator[str, None]:
-    chat_record = await get_user_chat(session=session, user_id=user_id, chat_id=chat_id)
-
-    if chat_record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found"
-        )
-
-    await create_message(
-        session=session, chat_id=chat_id, role=Roles.USER, content=message
-    )
-
-    history = await get_chat_messages(session=session, chat_id=chat_id)
-
-    full_response_parts: list[str] = []
-
-    async for token in stream_expert_reply(
-        history=history, plant_context=chat_record.plant_context
-    ):
-        full_response_parts.append(token)
-        yield f"data: {token}\n\n"
-
-    full_reply = "".join(full_response_parts)
-    if full_reply:
+    try:
         await create_message(
-            session=session, chat_id=chat_id, role=Roles.ASSISTANT, content=full_reply
+            session=session, chat_id=chat_id, role=Roles.USER, content=message
         )
+
+        history = await get_chat_messages(
+            session=session, chat_id=chat_id, limit=LLM_HISTORY_LIMIT
+        )
+
+        full_response_parts: list[str] = []
+
+        async for token in stream_expert_reply(
+            history=history, plant_context=plant_context
+        ):
+            full_response_parts.append(token)
+            yield f"data: {json.dumps(token, ensure_ascii=False)}\n\n"
+
+        full_reply = "".join(full_response_parts)
+        if full_reply:
+            await create_message(
+                session=session,
+                chat_id=chat_id,
+                role=Roles.ASSISTANT,
+                content=full_reply,
+            )
+
+        yield "data: [DONE]\n\n"
+    except (OpenAIError, SQLAlchemyError):
+        error_payload = json.dumps(
+            {
+                "detail": (
+                    "Не удалось получить ответ. Попробуйте отправить сообщение ещё раз."
+                )
+            },
+            ensure_ascii=False,
+        )
+        yield f"event: error\ndata: {error_payload}\n\n"

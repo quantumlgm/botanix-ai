@@ -9,10 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.users.models import User
 from app.api.users.schemas import TelegramUserPayload
+from app.core.config import settings
 from app.core.security import validate_init_data
 from app.services.postgres import get_session
-from app.core.config import settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +35,7 @@ async def get_or_create_user(
     user = result.scalar_one_or_none()
 
     if user is None:
-        result = await session.execute(
-            select(User).where(User.telegram_id == tg_id)
-        )
+        result = await session.execute(select(User).where(User.telegram_id == tg_id))
         user = result.scalar_one()
 
     await session.commit()
@@ -51,17 +48,13 @@ async def get_current_user(
     x_telegram_init_data: Annotated[
         str | None, Header(alias="X-Telegram-Init-Data")
     ] = None,
-    x_bot_secret: Annotated[
-        str | None, Header(alias="X-Bot-Secret")
-    ] = None,
+    x_bot_secret: Annotated[str | None, Header(alias="X-Bot-Secret")] = None,
     x_telegram_user_id: Annotated[
         int | None, Header(alias="X-Telegram-User-Id")
     ] = None,
 ) -> User:
     if x_bot_secret is not None:
-        if not secrets.compare_digest(
-            x_bot_secret, settings.BOT_INTERNAL_SECRET
-        ):
+        if not secrets.compare_digest(x_bot_secret, settings.BOT_INTERNAL_SECRET):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid bot secret",
@@ -82,7 +75,6 @@ async def get_current_user(
         request.state.user_id = str(user.id)
         return user
 
-    
     if not x_telegram_init_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

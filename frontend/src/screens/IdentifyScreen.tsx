@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -14,10 +14,16 @@ import {
   X,
 } from "lucide-react";
 import { identifyPlant } from "../api/endpoints";
-import {
-  getPlantIdentificationErrorMessage,
-} from "../api/errors";
+import { getPlantIdentificationErrorMessage } from "../api/errors";
 import type { PlantIdentificationResult } from "../api/types";
+import {
+  ImageError,
+  SUPPORTED_IMAGE_ACCEPT,
+  captureImageFromVideo,
+  prepareImageForUpload,
+} from "../utils/images";
+
+const CAMERA_ACCESS_TIMEOUT_MS = 10_000;
 
 type TelegramCameraAccess = {
   checkCameraAccess?: () => boolean | Promise<boolean>;
@@ -28,6 +34,67 @@ type TelegramCameraAccess = {
 
 interface IdentifyScreenProps {
   onOpenChat: (chatId: string) => void;
+}
+
+class CameraAccessTimeoutError extends Error {
+  constructor() {
+    super("Camera access request timed out");
+    this.name = "CameraAccessTimeoutError";
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new CameraAccessTimeoutError());
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+function getImageErrorMessage(error: unknown): string {
+  if (error instanceof ImageError) {
+    if (error.code === "heic_not_supported") {
+      return "Формат HEIC не поддерживается. Выберите фото в формате JPG, PNG или WebP.";
+    }
+    if (error.code === "too_large") {
+      return "Файл слишком большой. Максимальный размер — 5 МБ.";
+    }
+    if (error.code === "unsupported_type") {
+      return "Этот формат файла не поддерживается. Выберите JPG, PNG или WebP.";
+    }
+  }
+
+  return "Не удалось обработать изображение. Попробуйте другое фото.";
+}
+
+function getCameraAccessErrorMessage(error: unknown): string {
+  if (error instanceof CameraAccessTimeoutError) {
+    return "Telegram не ответил на запрос доступа к камере. Попробуйте ещё раз.";
+  }
+
+  if (
+    error instanceof DOMException &&
+    (error.name === "NotAllowedError" || error.name === "SecurityError")
+  ) {
+    return "Разрешите доступ к камере в Telegram и попробуйте снова.";
+  }
+
+  if (error instanceof DOMException && error.name === "NotFoundError") {
+    return "Камера не найдена на этом устройстве.";
+  }
+
+  return "Не удалось открыть камеру. Выберите фото из галереи или разрешите доступ к камере.";
 }
 
 export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
@@ -41,6 +108,9 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
   const [isTorchSupported, setIsTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isPreparingImage, setIsPreparingImage] = useState(false);
+  const [isOpeningCamera, setIsOpeningCamera] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -48,6 +118,10 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
   const previewUrlRef = useRef<string | null>(null);
   const cameraRequestIdRef = useRef(0);
   const cameraRequestInProgressRef = useRef(false);
+  const imagePreparationIdRef = useRef(0);
+  const captureInProgressRef = useRef(false);
+  const identifyAbortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     return () => {
@@ -59,12 +133,26 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      cameraRequestIdRef.current += 1;
+      imagePreparationIdRef.current += 1;
+      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+      identifyAbortRef.current?.abort();
+      identifyAbortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (isCameraOpen && videoRef.current && cameraStream) {
       videoRef.current.srcObject = cameraStream;
     }
   }, [cameraStream, isCameraOpen]);
 
-  const stopCameraStream = () => {
+  const stopCameraStream = useCallback(() => {
     cameraRequestIdRef.current += 1;
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
     cameraStreamRef.current = null;
@@ -74,33 +162,81 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-  };
+  }, []);
 
-  useEffect(
-    () => () => {
-      cameraRequestIdRef.current += 1;
-      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
-    },
-    []
-  );
+  const handleCameraTrackEnded = useCallback(() => {
+    stopCameraStream();
+    setIsCameraOpen(false);
+    setCameraError("Камера перестала быть доступна. Попробуйте открыть её снова.");
+  }, [stopCameraStream]);
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.currentTarget.value = "";
-    if (!file) return;
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "hidden") return;
+      if (!cameraStreamRef.current) return;
 
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      previewUrlRef.current = null;
+      stopCameraStream();
+      setIsCameraOpen(false);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [stopCameraStream]);
+
+  const applySelectedFile = (file: File) => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
     }
-
-    setSelectedFile(file);
-    setError(null);
-    setResult(null);
 
     const objectUrl = URL.createObjectURL(file);
     previewUrlRef.current = objectUrl;
+    setSelectedFile(file);
     setPreviewUrl(objectUrl);
+    setResult(null);
+    setError(null);
+    setCameraError(null);
+  };
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0] ?? null;
+    input.value = "";
+
+    if (!file) return;
+
+    const requestId = imagePreparationIdRef.current + 1;
+    imagePreparationIdRef.current = requestId;
+    setIsPreparingImage(true);
+    setError(null);
+    setCameraError(null);
+
+    try {
+      const preparedFile = await prepareImageForUpload(file);
+      if (
+        requestId !== imagePreparationIdRef.current ||
+        !isMountedRef.current
+      ) {
+        return;
+      }
+      applySelectedFile(preparedFile);
+    } catch (err: unknown) {
+      if (
+        requestId === imagePreparationIdRef.current &&
+        isMountedRef.current
+      ) {
+        setError(getImageErrorMessage(err));
+      }
+    } finally {
+      if (
+        requestId === imagePreparationIdRef.current &&
+        isMountedRef.current
+      ) {
+        setIsPreparingImage(false);
+      }
+    }
   };
 
   const requestCameraAccess = async (): Promise<boolean> => {
@@ -143,18 +279,32 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
     }
 
     cameraRequestInProgressRef.current = true;
+    setIsOpeningCamera(true);
     stopCameraStream();
     const requestId = cameraRequestIdRef.current;
     setCameraError(null);
 
     try {
-      if (!(await requestCameraAccess())) {
-        setCameraError("Разрешите доступ к камере в Telegram и попробуйте снова.");
+      const granted = await withTimeout(
+        requestCameraAccess(),
+        CAMERA_ACCESS_TIMEOUT_MS
+      );
+
+      if (!granted) {
+        if (requestId === cameraRequestIdRef.current) {
+          setCameraError(
+            "Разрешите доступ к камере в Telegram и попробуйте снова."
+          );
+        }
+        return;
+      }
+
+      if (requestId !== cameraRequestIdRef.current || !isMountedRef.current) {
         return;
       }
 
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Camera is unavailable");
+        throw new Error("Camera API is unavailable");
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -162,7 +312,12 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
         audio: false,
       });
 
-      if (requestId !== cameraRequestIdRef.current) {
+      if (requestId !== cameraRequestIdRef.current || !isMountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      if (document.visibilityState === "hidden") {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -171,18 +326,21 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
       const capabilities = track?.getCapabilities?.() as
         | (MediaTrackCapabilities & { torch?: boolean })
         | undefined;
+
+      track?.addEventListener("ended", handleCameraTrackEnded);
       cameraStreamRef.current = stream;
       setCameraStream(stream);
       setIsTorchSupported(Boolean(capabilities?.torch));
       setIsCameraOpen(true);
-    } catch {
-      if (requestId === cameraRequestIdRef.current) {
-        setCameraError(
-          "Не удалось открыть камеру. Выберите фото из галереи или разрешите доступ к камере."
-        );
+    } catch (err: unknown) {
+      if (requestId === cameraRequestIdRef.current && isMountedRef.current) {
+        setCameraError(getCameraAccessErrorMessage(err));
       }
     } finally {
       cameraRequestInProgressRef.current = false;
+      if (isMountedRef.current) {
+        setIsOpeningCamera(false);
+      }
     }
   };
 
@@ -211,51 +369,45 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
     }
   };
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     const video = videoRef.current;
-    if (!video || !video.videoWidth || !video.videoHeight) {
+    if (!video || captureInProgressRef.current) {
+      return;
+    }
+
+    if (!video.videoWidth || !video.videoHeight) {
       setCameraError("Камера ещё не готова. Попробуйте ещё раз.");
       return;
     }
 
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      setCameraError("Не удалось обработать снимок. Попробуйте ещё раз.");
-      return;
+    captureInProgressRef.current = true;
+    setIsCapturing(true);
+    setCameraError(null);
+
+    try {
+      const file = await captureImageFromVideo(video);
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      closeCamera();
+      applySelectedFile(file);
+    } catch (err: unknown) {
+      if (isMountedRef.current) {
+        setCameraError(getImageErrorMessage(err));
+      }
+    } finally {
+      captureInProgressRef.current = false;
+      if (isMountedRef.current) {
+        setIsCapturing(false);
+      }
     }
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          setCameraError("Не удалось сохранить снимок. Попробуйте ещё раз.");
-          return;
-        }
-
-        const file = new File([blob], `botanix-${Date.now()}.jpg`, {
-          type: "image/jpeg",
-        });
-        closeCamera();
-        if (previewUrl) {
-          URL.revokeObjectURL(previewUrl);
-          previewUrlRef.current = null;
-        }
-        setSelectedFile(file);
-        setError(null);
-        setResult(null);
-        const objectUrl = URL.createObjectURL(file);
-        previewUrlRef.current = objectUrl;
-        setPreviewUrl(objectUrl);
-      },
-      "image/jpeg",
-      0.92
-    );
   };
 
   const handleReset = () => {
+    imagePreparationIdRef.current += 1;
+    setIsPreparingImage(false);
+
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
       previewUrlRef.current = null;
@@ -270,14 +422,27 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
   };
 
   const handleUploadAndIdentify = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || identifyAbortRef.current) {
+      return;
+    }
+
+    const controller = new AbortController();
+    identifyAbortRef.current = controller;
+    setIsLoading(true);
+    setError(null);
 
     try {
-      setIsLoading(true);
-      setError(null);
-      const data = await identifyPlant(selectedFile);
+      const data = await identifyPlant(selectedFile, {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted || !isMountedRef.current) {
+        return;
+      }
       setResult(data);
     } catch (err: unknown) {
+      if (controller.signal.aborted || !isMountedRef.current) {
+        return;
+      }
       setError(
         getPlantIdentificationErrorMessage(
           err,
@@ -285,7 +450,12 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
         )
       );
     } finally {
-      setIsLoading(false);
+      if (identifyAbortRef.current === controller) {
+        identifyAbortRef.current = null;
+      }
+      if (!controller.signal.aborted && isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -294,8 +464,8 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
       <input
         type="file"
         ref={fileInputRef}
-        onChange={handleFileChange}
-        accept="image/*"
+        onChange={(event) => void handleFileChange(event)}
+        accept={SUPPORTED_IMAGE_ACCEPT}
         className="sr-only"
       />
 
@@ -304,14 +474,19 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
           <button
             type="button"
             onClick={() => void openCamera()}
-            className="flex flex-col items-center justify-center p-8 rounded-3xl border-2 border-dashed border-slate-700 bg-slate-800/30 hover:border-emerald-500/50 hover:bg-slate-800/50 transition-all gap-4 text-center group active:scale-[0.99] select-none [-webkit-tap-highlight-color:transparent]"
+            disabled={isOpeningCamera || isPreparingImage}
+            className="flex flex-col items-center justify-center p-8 rounded-3xl border-2 border-dashed border-slate-700 bg-slate-800/30 hover:border-emerald-500/50 hover:bg-slate-800/50 transition-all gap-4 text-center group active:scale-[0.99] select-none [-webkit-tap-highlight-color:transparent] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <div className="p-4 rounded-2xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
-              <Camera className="w-10 h-10" />
+              {isOpeningCamera ? (
+                <Loader2 className="w-10 h-10 animate-spin" />
+              ) : (
+                <Camera className="w-10 h-10" />
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-base font-semibold text-white">
-                Сделать снимок
+                {isOpeningCamera ? "Запрашиваем доступ..." : "Сделать снимок"}
               </span>
               <span className="text-xs text-slate-400">
                 Постарайтесь, чтобы лист или цветок был в фокусе
@@ -326,9 +501,17 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
                 fileInputRef.current.click();
               }
             }}
-            className="w-full rounded-2xl border border-slate-700 bg-slate-800/50 py-3 text-sm font-medium text-slate-200 transition hover:border-emerald-500/50 active:scale-[0.99]"
+            disabled={isPreparingImage || isOpeningCamera}
+            className="w-full rounded-2xl border border-slate-700 bg-slate-800/50 py-3 text-sm font-medium text-slate-200 transition hover:border-emerald-500/50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Выбрать из галереи
+            {isPreparingImage ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                Обработка фото...
+              </span>
+            ) : (
+              "Выбрать из галереи"
+            )}
           </button>
           {cameraError && (
             <p role="status" className="text-center text-xs text-amber-300">
@@ -375,7 +558,7 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
       {previewUrl && !result && !isLoading && (
         <button
           type="button"
-          onClick={handleUploadAndIdentify}
+          onClick={() => void handleUploadAndIdentify()}
           className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold active:scale-[0.98] transition-all shadow-lg shadow-emerald-500/20 select-none [-webkit-tap-highlight-color:transparent]"
         >
           <Sparkles className="w-5 h-5" />
@@ -434,11 +617,13 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
           role="dialog"
           aria-modal="true"
           aria-label="Камера"
-          className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black"
+          className="fixed inset-0 z-50 flex flex-col overflow-hidden overscroll-contain bg-black"
           style={{
             height: "var(--tg-viewport-height, 100dvh)",
-            paddingTop: "max(1rem, env(safe-area-inset-top))",
-            paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+            paddingTop:
+              "max(1rem, env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px))",
+            paddingBottom:
+              "max(1rem, env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px))",
           }}
         >
           <video
@@ -488,11 +673,17 @@ export function IdentifyScreen({ onOpenChat }: IdentifyScreenProps) {
           <div className="relative z-10 mt-auto flex justify-center p-16">
             <button
               type="button"
-              onClick={capturePhoto}
+              onClick={() => void capturePhoto()}
+              disabled={isCapturing}
               aria-label="Сделать снимок"
-              className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-white/20 text-white shadow-lg active:scale-95"
+              aria-busy={isCapturing}
+              className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-white/20 text-white shadow-lg active:scale-95 disabled:opacity-70"
             >
-              <Camera className="h-7 w-7" />
+              {isCapturing ? (
+                <Loader2 className="h-7 w-7 animate-spin" />
+              ) : (
+                <Camera className="h-7 w-7" />
+              )}
             </button>
           </div>
         </div>

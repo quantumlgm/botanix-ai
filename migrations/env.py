@@ -2,6 +2,8 @@ from logging.config import fileConfig
 
 from alembic import context
 
+from app.api.chat import models as chat_models  # noqa: F401
+from app.api.users import models as users_models  # noqa: F401
 from app.core.config import settings
 from app.services.postgres import Base, sync_engine
 

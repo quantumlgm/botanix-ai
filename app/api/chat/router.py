@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,14 +21,14 @@ from app.api.chat.service import (
     get_user_chat,
     get_user_chats,
 )
-from app.services.limiter import limiter
 from app.api.users.models import User
 from app.api.users.service import get_current_user
-from app.core.enums import MimeType, RateLimit
+from app.core.enums import RateLimit, StreamMimeType
 from app.services.converstation import (
     send_message_flow,
     send_message_stream_flow,
 )
+from app.services.limiter import limiter
 from app.services.postgres import get_session
 
 router = APIRouter(prefix="/chats", tags=["Chats"])
@@ -67,7 +67,9 @@ async def create_chat_handle(
     status_code=status.HTTP_201_CREATED,
     summary="Start a new text chat",
 )
+@limiter.limit(RateLimit.MEDIUM)
 async def send_message_handle(
+    request: Request,
     chat_id: UUID,
     payload: UserMessageRequest,
     current_user: User = Depends(get_current_user),
@@ -83,20 +85,33 @@ async def send_message_handle(
 
 
 @router.post("/{chat_id}/stream", summary="Stream chat message reply")
+@limiter.limit(RateLimit.MEDIUM)
 async def send_message_stream_handle(
+    request: Request,
     chat_id: UUID,
     payload: ChatAskRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> StreamingResponse:
+    chat = await get_user_chat(
+        session=session, chat_id=chat_id, user_id=current_user.id
+    )
+
     stream_generator = send_message_stream_flow(
         session=session,
-        user_id=current_user.id,
         chat_id=chat_id,
+        plant_context=chat.plant_context,
         message=payload.message,
     )
 
-    return StreamingResponse(stream_generator, media_type=MimeType.MEDIA_EVENT_STREAM)
+    return StreamingResponse(
+        stream_generator,
+        media_type=StreamMimeType.EVENT_STREAM,
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get(
@@ -106,11 +121,15 @@ async def send_message_stream_handle(
 )
 async def get_messages_handle(
     chat_id: UUID,
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Sequence[ChatMessage]:
     await get_user_chat(session=session, chat_id=chat_id, user_id=current_user.id)
-    return await get_chat_messages(session=session, chat_id=chat_id)
+    return await get_chat_messages(
+        session=session, chat_id=chat_id, limit=limit, offset=offset
+    )
 
 
 @router.get("", response_model=list[UserChatResponse], summary="Get all user chats")

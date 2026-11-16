@@ -5,13 +5,11 @@ import httpx
 from aiogram import Bot, F, Router
 from aiogram.enums import ChatAction, ParseMode
 from aiogram.types import Message
-from fastapi import UploadFile
-from starlette.datastructures import Headers
 
 from app.core.config import settings
-from app.services.images.exceptions import ImageExtensionError, ImageWeightError
-from app.services.images.service import MAX_IMAGE_SIZE, image_validate
-from bot.core.helpers import build_plant_markdown
+from app.services.images.service import MAX_IMAGE_SIZE
+from bot.core.config import settings as bot_settings
+from bot.core.helpers import build_plant_markdown, build_web_app_url
 from bot.core.texts import GENERATION_WARNING
 from bot.keyboards.identify import continue_in_app_keyboard
 
@@ -28,7 +26,8 @@ async def warn_single_photo(message: Message) -> None:
 
     now = time.monotonic()
     expired_keys = [
-        key for key, sent_at in warning_cooldowns.items()
+        key
+        for key, sent_at in warning_cooldowns.items()
         if now - sent_at >= WARNING_COOLDOWN_SECONDS
     ]
     for key in expired_keys:
@@ -47,14 +46,14 @@ async def warn_single_photo(message: Message) -> None:
 async def photo_handler(message: Message, bot: Bot):
     if not message.from_user:
         return
-    
+
     if message.media_group_id:
         await warn_single_photo(message)
         return
-    
+
     media = message.photo[-1] if message.photo else message.document
     if not media:
-        return    
+        return
 
     user_id = message.from_user.id
     if user_id in processing_users:
@@ -79,11 +78,10 @@ async def photo_handler(message: Message, bot: Bot):
         ext = mime_type.split("/")[-1]
         filename = f"tg_{media.file_unique_id}.{ext}"
 
-
         file_buffer = io.BytesIO()
         await bot.download(file=media, destination=file_buffer)
         file_buffer.seek(0)
-        
+
         headers = {
             "X-Bot-Secret": settings.BOT_INTERNAL_SECRET,
             "X-Telegram-User-Id": str(message.from_user.id),
@@ -96,7 +94,7 @@ async def photo_handler(message: Message, bot: Bot):
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                "https://botanix-ai-95rv.onrender.com/plants/identify",
+                f"{bot_settings.BACKEND_URL.rstrip('/')}/plants/identify",
                 files=files,
                 data=data,
                 headers=headers,
@@ -107,11 +105,7 @@ async def photo_handler(message: Message, bot: Bot):
         formatted_text = build_plant_markdown(result)
         chat_id = result.get("chat_id", "")
 
-        app_url = (
-            f"https://botanix-frontend.onrender.com?chat_id={chat_id}"
-            if chat_id
-            else "https://botanix-frontend.onrender.com"
-        )
+        app_url = build_web_app_url(chat_id=chat_id)
 
         await status_msg.edit_text(
             text=formatted_text,

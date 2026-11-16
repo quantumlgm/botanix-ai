@@ -1,16 +1,15 @@
 from aiogram.types import InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from bot.core.config import settings
+
+
 def start_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
+    builder.button(text="ℹ️ Информация", callback_data="menu_info")
     builder.button(
-        text="ℹ️ Информация",
-        callback_data="menu_info"
-    )
-    builder.button(
-        text="Запустить Botanix",
-        web_app=WebAppInfo(url="https://botanix-frontend.onrender.com")
+        text="Запустить Botanix", web_app=WebAppInfo(url=settings.WEB_APP_URL)
     )
 
     builder.adjust(1, 1)
@@ -19,10 +18,7 @@ def start_keyboard() -> InlineKeyboardMarkup:
 
 def back_to_main_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    
-    builder.button(
-        text="⬅️ Назад",
-        callback_data="menu_main"
-    )
-    
+
+    builder.button(text="⬅️ Назад", callback_data="menu_main")
+
     return builder.as_markup()

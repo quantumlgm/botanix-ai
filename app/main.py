@@ -1,84 +1,42 @@
 import asyncio
-import logging
 import os
-import time
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
+from fastapi.responses import JSONResponse, Response
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api.chat.router import router as chat_router
 from app.api.identify.router import router as identify_router
 from app.api.users.router import router as user_router
 from app.core.config import settings
+from app.core.exceptions import AppError
 from app.services.limiter import limiter
 from bot.main import main as bot_main
 
-
-logger = logging.getLogger("app.request")
-api = FastAPI()
-
-
-class RequestLoggingMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
-        self.app = app
-
-    async def __call__(
-        self, scope: Scope, receive: Receive, send: Send
-    ) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        started_at = time.perf_counter()
-        client = scope.get("client")
-        client_ip = client[0] if client else "unknown"
-        status_code = 500
-        state = scope.setdefault("state", {})
-
-        async def log_response(message: Message) -> None:
-            nonlocal status_code
-            if message["type"] == "http.response.start":
-                status_code = message["status"]
-            await send(message)
-
-        try:
-            await self.app(scope, receive, log_response)
-        except Exception:
-            logger.exception(
-                "request failed method=%s path=%s status_code=%s client_ip=%s "
-                "user_id=%s duration_ms=%.2f",
-                scope["method"],
-                scope["path"],
-                status_code,
-                client_ip,
-                state.get("user_id", "-"),
-                (time.perf_counter() - started_at) * 1000,
-            )
-            raise
-
-        logger.info(
-            "request completed method=%s path=%s status_code=%s client_ip=%s "
-            "user_id=%s duration_ms=%.2f",
-            scope["method"],
-            scope["path"],
-            status_code,
-            client_ip,
-            state.get("user_id", "-"),
-            (time.perf_counter() - started_at) * 1000,
-        )
+app = FastAPI()
+app.state.limiter = limiter
 
 
-api.state.limiter = limiter
+@app.exception_handler(AppError)
+async def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
 
 
-api.include_router(identify_router)
-api.include_router(chat_router)
-api.include_router(user_router)
+@app.exception_handler(RateLimitExceeded)
+async def handle_rate_limit_exceeded(
+    request: Request, exc: RateLimitExceeded
+) -> Response:
+    return _rate_limit_exceeded_handler(request, exc)
 
-cors_app = CORSMiddleware(
-    app=api,
+
+app.add_middleware(
+    CORSMiddleware,
     allow_origins=[
         origin.strip()
         for origin in settings.CORS_ALLOWED_ORIGINS.split(",")
@@ -88,7 +46,11 @@ cors_app = CORSMiddleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app = RequestLoggingMiddleware(cors_app)
+
+
+app.include_router(identify_router)
+app.include_router(chat_router)
+app.include_router(user_router)
 
 
 async def start_app():
@@ -109,10 +71,7 @@ async def start_bot():
 
 
 async def main():
-    await asyncio.gather(
-        start_app(),
-        start_bot()
-    )
+    await asyncio.gather(start_app(), start_bot())
 
 
 if __name__ == "__main__":

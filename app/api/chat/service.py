@@ -45,14 +45,20 @@ async def get_user_chats(session: AsyncSession, user_id: UUID) -> Sequence[Chat]
 
 
 async def get_chat_messages(
-    session: AsyncSession, chat_id: UUID, limit: int = 10
+    session: AsyncSession,
+    chat_id: UUID,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> Sequence[ChatMessage]:
     query = (
         select(ChatMessage)
         .where(ChatMessage.chat_id == chat_id)
         .order_by(ChatMessage.created_at.desc())
-        .limit(limit)
+        .offset(offset)
     )
+
+    if limit is not None:
+        query = query.limit(limit)
 
     result = await session.execute(query)
     messages = result.scalars().all()

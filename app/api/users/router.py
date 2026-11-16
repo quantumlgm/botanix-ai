@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, Request
 
 from app.api.users.models import User

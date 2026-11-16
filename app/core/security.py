@@ -33,9 +33,7 @@ def validate_init_data(
         )
 
     try:
-        data_pairs = parse_qsl(
-            init_data, keep_blank_values=True, strict_parsing=True
-        )
+        data_pairs = parse_qsl(init_data, keep_blank_values=True, strict_parsing=True)
     except ValueError:
         raise _reject_init_data("Malformed Telegram init data.")
 
