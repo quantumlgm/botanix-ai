@@ -7,7 +7,8 @@ class AppSettings(BaseSettings):
     IDENTIFIER_API_KEY: str
     PROVIDER_API_KEY: str
     PROVIDER_URL: str = "https://openrouter.ai/api/v1"
-    MODEL_NAME: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    # MODEL_NAME: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    MODEL_NAME: str = "baidu/ernie-5.5-flash-preview:free"
 
     POSTGRES_USER: str
     POSTGRES_DB: str
