@@ -1,6 +1,5 @@
 import textwrap
 
-
 MAIN_MENU_TEXT = textwrap.dedent("""
     🌱 <b>Добро пожаловать в Botanix AI!</b>
 

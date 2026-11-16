@@ -26,7 +26,8 @@ async def warn_single_photo(message: Message) -> None:
 
     now = time.monotonic()
     expired_keys = [
-        key for key, sent_at in warning_cooldowns.items()
+        key
+        for key, sent_at in warning_cooldowns.items()
         if now - sent_at >= WARNING_COOLDOWN_SECONDS
     ]
     for key in expired_keys:
@@ -45,14 +46,14 @@ async def warn_single_photo(message: Message) -> None:
 async def photo_handler(message: Message, bot: Bot):
     if not message.from_user:
         return
-    
+
     if message.media_group_id:
         await warn_single_photo(message)
         return
-    
+
     media = message.photo[-1] if message.photo else message.document
     if not media:
-        return    
+        return
 
     user_id = message.from_user.id
     if user_id in processing_users:
@@ -77,11 +78,10 @@ async def photo_handler(message: Message, bot: Bot):
         ext = mime_type.split("/")[-1]
         filename = f"tg_{media.file_unique_id}.{ext}"
 
-
         file_buffer = io.BytesIO()
         await bot.download(file=media, destination=file_buffer)
         file_buffer.seek(0)
-        
+
         headers = {
             "X-Bot-Secret": settings.BOT_INTERNAL_SECRET,
             "X-Telegram-User-Id": str(message.from_user.id),

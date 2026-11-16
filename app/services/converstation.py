@@ -74,10 +74,10 @@ async def generate_expert_reply(
         llm_messages.append({"role": msg.role, "content": msg.content})
 
     response = await client.chat.completions.create(
-        model=settings.MODEL_NAME, 
-        messages=llm_messages, 
+        model=settings.MODEL_NAME,
+        messages=llm_messages,
         temperature=0.3,
-        frequency_penalty=0.2
+        frequency_penalty=0.2,
     )
     choice = response.choices[0]
     return choice.message.content or "Не удалось получить ответ от модели."
@@ -100,7 +100,7 @@ async def stream_expert_reply(
         messages=llm_messages,
         temperature=0.3,
         stream=True,
-        frequency_penalty=0.2
+        frequency_penalty=0.2,
     )
 
     async for chunk in response_stream:

@@ -7,7 +7,6 @@ class AppSettings(BaseSettings):
     IDENTIFIER_API_KEY: str
     PROVIDER_API_KEY: str
     PROVIDER_URL: str = "https://openrouter.ai/api/v1"
-    # MODEL_NAME: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
     MODEL_NAME: str = "baidu/ernie-5.5-flash-preview:free"
 
     POSTGRES_USER: str
@@ -20,9 +19,7 @@ class AppSettings(BaseSettings):
     BOT_INTERNAL_SECRET: str
 
     DEBUG: bool = False
-    CORS_ALLOWED_ORIGINS: str = (
-        "http://localhost:5173,http://127.0.0.1:5173"
-    )
+    CORS_ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     @property
     def pg_psycopg_dsn(self) -> str:
@@ -36,9 +33,9 @@ class AppSettings(BaseSettings):
                 path=self.POSTGRES_DB,
             )
         )
-    
+
     @property
-    def pg_asyncpg_dsn(self) -> str:        
+    def pg_asyncpg_dsn(self) -> str:
         return str(
             Url.build(
                 scheme="postgresql+asyncpg",
@@ -49,7 +46,7 @@ class AppSettings(BaseSettings):
                 path=self.POSTGRES_DB,
             )
         )
-    
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

@@ -16,7 +16,6 @@ from app.core.exceptions import AppError
 from app.services.limiter import limiter
 from bot.main import main as bot_main
 
-
 app = FastAPI()
 app.state.limiter = limiter
 
@@ -38,15 +37,15 @@ async def handle_rate_limit_exceeded(
 
 app.add_middleware(
     CORSMiddleware,
-        allow_origins=[
-            origin.strip()
-            for origin in settings.CORS_ALLOWED_ORIGINS.split(",")
-            if origin.strip()
-        ],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    allow_origins=[
+        origin.strip()
+        for origin in settings.CORS_ALLOWED_ORIGINS.split(",")
+        if origin.strip()
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 app.include_router(identify_router)
@@ -72,10 +71,7 @@ async def start_bot():
 
 
 async def main():
-    await asyncio.gather(
-        start_app(),
-        start_bot()
-    )
+    await asyncio.gather(start_app(), start_bot())
 
 
 if __name__ == "__main__":
