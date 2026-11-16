@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from app.api.identify.schemas import PlantNetResponse
 from app.core.config import settings
-from app.core.enums import MimeType
+from app.core.enums import ImageMimeType
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ async def identify_service(image_bytes: bytes) -> PlantNetResponse:
 
     file_name = f"scan_{secrets.token_hex(4)}.jpg"
 
-    files = [("images", (file_name, image_bytes, MimeType.IMAGE_JPEG))]
+    files = [("images", (file_name, image_bytes, ImageMimeType.JPEG))]
 
     data = {"organs": ["auto"]}
 

@@ -23,7 +23,7 @@ from app.api.chat.service import (
 )
 from app.api.users.models import User
 from app.api.users.service import get_current_user
-from app.core.enums import MimeType, RateLimit
+from app.core.enums import RateLimit, StreamMimeType
 from app.services.converstation import (
     send_message_flow,
     send_message_stream_flow,
@@ -106,7 +106,7 @@ async def send_message_stream_handle(
 
     return StreamingResponse(
         stream_generator,
-        media_type=MimeType.MEDIA_EVENT_STREAM,
+        media_type=StreamMimeType.EVENT_STREAM,
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",

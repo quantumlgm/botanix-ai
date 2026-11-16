@@ -1,16 +1,15 @@
 from pathlib import Path
 
-from fastapi import UploadFile
 import filetype
+from fastapi import UploadFile
 
-from app.core.enums import MimeType
+from app.core.enums import ImageMimeType
 from app.core.functions import mb_to_bytes
 from app.services.images.exceptions import ImageExtensionError, ImageWeightError
 
-
 CHUNK_SIZE = 64 * 1024   
 MAX_IMAGE_SIZE = mb_to_bytes(5)
-ALLOWED_MIME_TYPES = {item for item in MimeType}
+ALLOWED_MIME_TYPES = {item.value for item in ImageMimeType}
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
