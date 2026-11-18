@@ -1,4 +1,3 @@
-import logging
 import secrets
 
 import httpx
@@ -8,8 +7,6 @@ from pydantic import ValidationError
 from app.api.identify.schemas import PlantNetResponse
 from app.core.config import settings
 from app.core.enums import ImageMimeType
-
-logger = logging.getLogger(__name__)
 
 NO_PLANT_FOUND_DETAIL = (
     "Не удалось обнаружить растение на снимке. "
@@ -50,10 +47,6 @@ async def identify_service(image_bytes: bytes) -> PlantNetResponse:
                     detail=NO_PLANT_FOUND_DETAIL,
                 )
             if response.status_code != status.HTTP_200_OK:
-                logger.warning(
-                    "PlantNet returned status %s during plant identification",
-                    response.status_code,
-                )
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail=IDENTIFICATION_UNAVAILABLE_DETAIL,
@@ -63,7 +56,6 @@ async def identify_service(image_bytes: bytes) -> PlantNetResponse:
     except HTTPException:
         raise
     except (httpx.HTTPError, ValidationError, ValueError):
-        logger.exception("PlantNet identification request failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=IDENTIFICATION_UNAVAILABLE_DETAIL,

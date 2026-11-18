@@ -1,9 +1,18 @@
-export type CareTipKey = "light" | "water" | "temperature";
+import type { PlantCareInfo } from "../api/types";
+
+export type CareTipKey =
+  | "light"
+  | "water"
+  | "temperature"
+  | "humidity"
+  | "complexity"
+  | "toxicity";
 
 export interface CareTip {
   key: CareTipKey;
   label: string;
   value: string;
+  tone?: "default" | "danger";
 }
 
 interface CareTopic {
@@ -189,4 +198,26 @@ export function extractCareTips(reply: string): CareTip[] {
 
     return value ? [{ key: topic.key, label: topic.label, value }] : [];
   });
+}
+
+export function buildCareTipsFromData(data: PlantCareInfo): CareTip[] {
+  const complexity = data.care_complexity
+    ? `${data.care_complexity} · ${data.complexity_rate}/5`
+    : `${data.complexity_rate}/5`;
+
+  const tips: CareTip[] = [
+    { key: "light", label: "Освещение", value: data.light },
+    { key: "water", label: "Полив", value: data.watering },
+    { key: "temperature", label: "Температура", value: data.temperature },
+    { key: "humidity", label: "Влажность", value: data.humidity },
+    { key: "complexity", label: "Сложность ухода", value: complexity },
+    {
+      key: "toxicity",
+      label: "Токсичность",
+      value: data.toxicity_note,
+      tone: data.is_toxic ? "danger" : "default",
+    },
+  ];
+
+  return tips.filter((tip) => tip.value.trim().length > 0);
 }

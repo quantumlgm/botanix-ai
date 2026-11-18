@@ -7,14 +7,17 @@ import {
   ArrowLeft,
   ArrowRight,
   Camera,
+  CloudRain,
   Droplets,
   Flashlight,
   FlashlightOff,
+  Gauge,
   ImagePlus,
   Leaf,
   Loader2,
   RefreshCw,
   ScanSearch,
+  ShieldAlert,
   Sun,
   Thermometer,
   X,
@@ -28,7 +31,11 @@ import {
   captureImageFromVideo,
   prepareImageForUpload,
 } from "../utils/images";
-import { extractCareTips, type CareTipKey } from "../utils/care";
+import {
+  buildCareTipsFromData,
+  extractCareTips,
+  type CareTipKey,
+} from "../utils/care";
 
 const CAMERA_ACCESS_TIMEOUT_MS = 10_000;
 
@@ -105,9 +112,15 @@ function getCameraAccessErrorMessage(error: unknown): string {
   return "Не удалось открыть камеру. Выберите фото из галереи или разрешите доступ к камере.";
 }
 
-function CareTipIcon({ careKey }: { careKey: CareTipKey }) {
+function CareTipIcon({
+  careKey,
+  tone = "default",
+}: {
+  careKey: CareTipKey;
+  tone?: "default" | "danger";
+}) {
   const props = {
-    className: "h-4 w-4 text-accent",
+    className: `h-4 w-4 ${tone === "danger" ? "text-danger" : "text-accent"}`,
     strokeWidth: 1.7,
   };
 
@@ -119,7 +132,19 @@ function CareTipIcon({ careKey }: { careKey: CareTipKey }) {
     return <Droplets {...props} />;
   }
 
-  return <Thermometer {...props} />;
+  if (careKey === "temperature") {
+    return <Thermometer {...props} />;
+  }
+
+  if (careKey === "humidity") {
+    return <CloudRain {...props} />;
+  }
+
+  if (careKey === "complexity") {
+    return <Gauge {...props} />;
+  }
+
+  return <ShieldAlert {...props} />;
 }
 
 export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
@@ -487,7 +512,11 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
   const confidencePercent = result
     ? Math.max(0, Math.min(100, Math.round(result.confidence * 100)))
     : 0;
-  const careTips = result ? extractCareTips(result.reply) : [];
+  const careTips = result
+    ? result.data
+      ? buildCareTipsFromData(result.data)
+      : extractCareTips(result.reply)
+    : [];
 
   return (
     <div className="mx-auto flex h-full w-full max-w-md flex-col">
@@ -692,20 +721,28 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
                         ? "grid-cols-1"
                         : careTips.length === 2
                           ? "grid-cols-2"
-                          : "grid-cols-3"
+                          : careTips.length === 3
+                            ? "grid-cols-3"
+                            : "grid-cols-2"
                     }`}
                   >
                     {careTips.map((tip) => (
                       <div
                         key={tip.key}
-                        className="min-w-0 rounded-2xl bg-surface-soft px-3 py-3"
+                        className={`min-w-0 rounded-2xl px-3 py-3 ${
+                          tip.tone === "danger"
+                            ? "bg-danger-soft"
+                            : "bg-surface-soft"
+                        }`}
                       >
-                        <CareTipIcon careKey={tip.key} />
+                        <CareTipIcon careKey={tip.key} tone={tip.tone} />
                         <p className="mt-2 text-[10px] font-medium text-ink/70">
                           {tip.label}
                         </p>
                         <p
-                          className="mt-1 line-clamp-3 text-[11px] leading-snug font-medium text-ink"
+                          className={`mt-1 line-clamp-3 text-[11px] leading-snug font-medium ${
+                            tip.tone === "danger" ? "text-danger" : "text-ink"
+                          }`}
                           title={tip.value}
                         >
                           {tip.value}
