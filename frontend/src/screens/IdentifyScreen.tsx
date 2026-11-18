@@ -150,6 +150,7 @@ function CareTipIcon({
 export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [result, setResult] = useState<PlantIdentificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -245,6 +246,7 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
     previewUrlRef.current = objectUrl;
     setSelectedFile(file);
     setPreviewUrl(objectUrl);
+    setQuestion("");
     setResult(null);
     setError(null);
     setCameraError(null);
@@ -464,6 +466,7 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
     }
     setSelectedFile(null);
     setPreviewUrl(null);
+    setQuestion("");
     setResult(null);
     setError(null);
     if (fileInputRef.current) {
@@ -483,6 +486,7 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
 
     try {
       const data = await identifyPlant(selectedFile, {
+        question,
         signal: controller.signal,
       });
       if (controller.signal.aborted || !isMountedRef.current) {
@@ -660,6 +664,34 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
                 </div>
               )}
             </div>
+
+            {!result && (
+              <div className="mt-4 rounded-3xl border border-line bg-surface p-4 shadow-card transition-colors focus-within:border-accent/45">
+                <div className="flex items-baseline justify-between gap-3">
+                  <label
+                    htmlFor="identify-question"
+                    className="text-[12px] font-semibold text-ink"
+                  >
+                    Вопрос ботанику
+                  </label>
+                  <span className="text-[10px] text-muted">необязательно</span>
+                </div>
+                <textarea
+                  id="identify-question"
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder="Например: почему желтеют листья?"
+                  rows={2}
+                  maxLength={700}
+                  disabled={isLoading}
+                  className="mt-2 max-h-28 min-h-[52px] w-full resize-none bg-transparent text-[14px] leading-relaxed text-ink placeholder:text-muted focus:outline-none disabled:opacity-60"
+                />
+                <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-muted">
+                  <span>Оставьте пустым — покажем полный разбор растения.</span>
+                  <span>{question.length}/700</span>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div
