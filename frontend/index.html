@@ -13,11 +13,35 @@
       name="description"
       content="Botanix AI — ботанический помощник в Telegram: определите растение по фото и получите советы по уходу."
     />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
       (function () {
         try {
           var stored = localStorage.getItem("botanix-theme");
-          var theme = stored === "dark" || stored === "light" ? stored : "light";
+          var isManual =
+            localStorage.getItem("botanix-theme-manual") === "1";
+          var telegramTheme =
+            window.Telegram &&
+            window.Telegram.WebApp &&
+            window.Telegram.WebApp.colorScheme;
+          var theme;
+
+          if (
+            isManual &&
+            (stored === "dark" || stored === "light")
+          ) {
+            theme = stored;
+          } else if (telegramTheme === "dark" || telegramTheme === "light") {
+            theme = telegramTheme;
+          } else if (
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+          ) {
+            theme = "dark";
+          } else {
+            theme = "light";
+          }
+
           document.documentElement.dataset.theme = theme;
           document.documentElement.style.colorScheme = theme;
           var meta = document.querySelector('meta[name="theme-color"]');
@@ -30,7 +54,6 @@
         } catch (error) {}
       })();
     </script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <title>Botanix AI — ботанический помощник</title>
   </head>
   <body>

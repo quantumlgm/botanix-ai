@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
@@ -21,19 +20,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(theme);
   }, [theme]);
 
-  useEffect(() => {
-    persistTheme(theme);
-  }, [theme]);
-
   const setTheme = useCallback((nextTheme: Theme) => {
+    persistTheme(nextTheme);
     setThemeState(nextTheme);
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setThemeState((currentTheme) =>
-      currentTheme === "light" ? "dark" : "light"
-    );
-  }, []);
+    setTheme(theme === "light" ? "dark" : "light");
+  }, [setTheme, theme]);
 
   const value = useMemo(
     () => ({ theme, setTheme, toggleTheme }),

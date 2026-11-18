@@ -76,7 +76,12 @@ function shortenValue(value: string): string {
     return candidate;
   }
 
-  return `${candidate.slice(0, 92).trimEnd()}…`;
+  const truncated = candidate.slice(0, 92).trimEnd();
+  const lastSpace = truncated.lastIndexOf(" ");
+  const safeCut =
+    lastSpace >= 40 ? truncated.slice(0, lastSpace) : truncated;
+
+  return `${safeCut.replace(/[,;:—–-]+$/, "").trimEnd()}…`;
 }
 
 function compactValue(key: CareTipKey, value: string): string {
@@ -100,7 +105,7 @@ function compactValue(key: CareTipKey, value: string): string {
     }
   }
 
-  return shortenValue(value);
+  return shortenValue(value).replace(/[.!?]+$/, "");
 }
 
 function parseTableRow(line: string): { key: CareTipKey; value: string } | null {

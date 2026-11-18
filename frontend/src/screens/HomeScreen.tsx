@@ -312,9 +312,23 @@ export function HomeScreen({
                       >
                         <span
                           aria-hidden="true"
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent"
+                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                            chat.plant_context
+                              ? "bg-accent-soft text-accent"
+                              : "bg-surface-soft text-muted"
+                          }`}
                         >
-                          <Leaf className="h-[22px] w-[22px]" strokeWidth={1.5} />
+                          {chat.plant_context ? (
+                            <Leaf
+                              className="h-[22px] w-[22px]"
+                              strokeWidth={1.5}
+                            />
+                          ) : (
+                            <MessageCircle
+                              className="h-[22px] w-[22px]"
+                              strokeWidth={1.5}
+                            />
+                          )}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[14.5px] font-semibold tracking-[-0.005em] text-ink">

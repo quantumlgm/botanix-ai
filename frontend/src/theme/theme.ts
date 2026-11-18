@@ -1,4 +1,5 @@
 export const THEME_STORAGE_KEY = "botanix-theme";
+const THEME_MANUAL_KEY = "botanix-theme-manual";
 
 export type Theme = "light" | "dark";
 
@@ -22,18 +23,14 @@ export function isTheme(value: unknown): value is Theme {
   return value === "light" || value === "dark";
 }
 
-export function readInitialTheme(): Theme {
-  if (typeof document === "undefined") {
-    return "light";
-  }
-
-  const domTheme = document.documentElement.dataset.theme;
-
-  if (isTheme(domTheme)) {
-    return domTheme;
-  }
-
+function readStoredTheme(): Theme | null {
   try {
+    const isManual = window.localStorage.getItem(THEME_MANUAL_KEY) === "1";
+
+    if (!isManual) {
+      return null;
+    }
+
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
 
     if (isTheme(storedTheme)) {
@@ -43,12 +40,62 @@ export function readInitialTheme(): Theme {
     // Storage can be unavailable in private Telegram webviews.
   }
 
-  return "light";
+  return null;
+}
+
+export function getSystemTheme(): Theme {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return "light";
+  }
+
+  try {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  } catch {
+    return "light";
+  }
+}
+
+export function resolveTheme(): Theme {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const storedTheme = readStoredTheme();
+
+  if (storedTheme) {
+    return storedTheme;
+  }
+
+  const telegramTheme = window.Telegram?.WebApp?.colorScheme;
+
+  if (isTheme(telegramTheme)) {
+    return telegramTheme;
+  }
+
+  return getSystemTheme();
+}
+
+export function readInitialTheme(): Theme {
+  if (typeof document !== "undefined") {
+    const domTheme = document.documentElement.dataset.theme;
+
+    if (isTheme(domTheme)) {
+      return domTheme;
+    }
+  }
+
+  return resolveTheme();
 }
 
 export function persistTheme(theme: Theme): void {
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    window.localStorage.setItem(THEME_MANUAL_KEY, "1");
   } catch {
     // The theme still applies for the current session.
   }

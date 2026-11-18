@@ -1,5 +1,5 @@
 import { setupTelegramMock } from "./mock";
-import { applyTheme, readInitialTheme } from "../theme/theme";
+import { applyTheme, resolveTheme } from "../theme/theme";
 
 export function initTelegramApp(): void {
   setupTelegramMock();
@@ -21,5 +21,5 @@ export function initTelegramApp(): void {
     // Older Telegram clients may not support vertical swipe control.
   }
 
-  applyTheme(readInitialTheme());
+  applyTheme(resolveTheme());
 }

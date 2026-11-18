@@ -758,14 +758,7 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
           role="dialog"
           aria-modal="true"
           aria-label="Камера"
-          className="fixed inset-0 z-50 flex flex-col overflow-hidden overscroll-contain bg-black"
-          style={{
-            height: "var(--tg-viewport-height, 100dvh)",
-            paddingTop:
-              "max(1rem, env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px))",
-            paddingBottom:
-              "max(1rem, env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px))",
-          }}
+          className="fixed inset-0 z-50 overflow-hidden overscroll-contain bg-black"
         >
           <video
             ref={videoRef}
@@ -779,62 +772,74 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
             className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/55"
           />
 
-          <div className="relative z-10 flex items-center justify-between p-4">
-            <button
-              type="button"
-              onClick={closeCamera}
-              aria-label="Закрыть камеру"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md transition active:scale-95"
-            >
-              <X className="h-5 w-5" strokeWidth={1.7} />
-            </button>
-
-            {isTorchSupported && (
+          <div
+            className="relative z-10 flex h-full flex-col"
+            style={{
+              paddingTop:
+                "max(0.75rem, env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px))",
+              paddingBottom:
+                "max(1.75rem, env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px))",
+            }}
+          >
+            <div className="flex items-center justify-between px-4 py-1">
               <button
                 type="button"
-                onClick={() => void toggleTorch()}
-                aria-label={torchOn ? "Выключить фонарик" : "Включить фонарик"}
-                aria-pressed={torchOn}
-                className={`flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-md transition active:scale-95 ${
-                  torchOn
-                    ? "border-white bg-white text-black"
-                    : "border-white/20 bg-white/10 text-white"
-                }`}
+                onClick={closeCamera}
+                aria-label="Закрыть камеру"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md transition active:scale-95"
               >
-                {torchOn ? (
-                  <FlashlightOff className="h-5 w-5" strokeWidth={1.7} />
-                ) : (
-                  <Flashlight className="h-5 w-5" strokeWidth={1.7} />
-                )}
+                <X className="h-5 w-5" strokeWidth={1.7} />
               </button>
+
+              {isTorchSupported && (
+                <button
+                  type="button"
+                  onClick={() => void toggleTorch()}
+                  aria-label={torchOn ? "Выключить фонарик" : "Включить фонарик"}
+                  aria-pressed={torchOn}
+                  className={`flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-md transition active:scale-95 ${
+                    torchOn
+                      ? "border-white bg-white text-black"
+                      : "border-white/20 bg-white/10 text-white"
+                  }`}
+                >
+                  {torchOn ? (
+                    <FlashlightOff className="h-5 w-5" strokeWidth={1.7} />
+                  ) : (
+                    <Flashlight className="h-5 w-5" strokeWidth={1.7} />
+                  )}
+                </button>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1" />
+
+            {cameraError && (
+              <p
+                role="status"
+                className="relative z-10 mx-5 mb-4 rounded-2xl border border-white/10 bg-black/55 p-3 text-center text-[12px] leading-relaxed text-white backdrop-blur-md"
+              >
+                {cameraError}
+              </p>
             )}
-          </div>
 
-          {cameraError && (
-            <p
-              role="status"
-              className="relative z-10 mx-5 mt-auto rounded-2xl border border-white/10 bg-black/55 p-3 text-center text-[12px] leading-relaxed text-white backdrop-blur-md"
-            >
-              {cameraError}
-            </p>
-          )}
-
-          <div className="relative z-10 mt-auto flex flex-col items-center gap-4 p-8">
-            <div className="flex h-[78px] w-[78px] items-center justify-center rounded-full border border-white/40">
-              <button
-                type="button"
-                onClick={() => void capturePhoto()}
-                disabled={isCapturing}
-                aria-label="Сделать снимок"
-                aria-busy={isCapturing}
-                className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-white text-black shadow-[0_0_36px_rgba(255,255,255,0.25)] transition active:scale-95 disabled:opacity-70"
-              >
-                {isCapturing ? (
-                  <Loader2 className="h-6 w-6 animate-spin" strokeWidth={1.7} />
-                ) : (
-                  <Camera className="h-6 w-6" strokeWidth={1.7} />
-                )}
-              </button>
+            <div className="relative z-10 flex flex-col items-center px-6">
+              <div className="flex h-[78px] w-[78px] items-center justify-center rounded-full border border-white/40">
+                <button
+                  type="button"
+                  onClick={() => void capturePhoto()}
+                  disabled={isCapturing}
+                  aria-label="Сделать снимок"
+                  aria-busy={isCapturing}
+                  className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-white text-black shadow-[0_0_36px_rgba(255,255,255,0.25)] transition active:scale-95 disabled:opacity-70"
+                >
+                  {isCapturing ? (
+                    <Loader2 className="h-6 w-6 animate-spin" strokeWidth={1.7} />
+                  ) : (
+                    <Camera className="h-6 w-6" strokeWidth={1.7} />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
