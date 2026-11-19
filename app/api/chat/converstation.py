@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.chat.models import Chat, ChatMessage
 from app.api.chat.service import get_chat_messages, get_user_chat
 from app.core.config import settings
-from app.core.enums import Roles
+from app.core.enums import LLMValues, Roles
 from app.services.prompts import PLANT_EXPERT_SYSTEM_PROMPT, STRUCTURED_ANALYSIS_ADDON
 from app.api.identify.schemas import PlantAnalysisResponse, PlantCareInfo
 
@@ -119,8 +119,8 @@ async def generate_expert_reply(
             response = await client.beta.chat.completions.parse(
                 model=settings.MODEL_NAME,
                 messages=build_llm_messages(history, structured_prompt),
-                temperature=0.3,
-                frequency_penalty=0.2,
+                temperature=LLMValues.TEMPERATURE,
+                frequency_penalty=LLMValues.FREQUENCY_PENALTY,
                 response_format=PlantAnalysisResponse,
             )
             parsed = response.choices[0].message.parsed if response.choices else None
@@ -132,8 +132,8 @@ async def generate_expert_reply(
     response = await client.chat.completions.create(
         model=settings.MODEL_NAME,
         messages=build_llm_messages(history, system_prompt),
-        temperature=0.3,
-        frequency_penalty=0.2,
+        temperature=LLMValues.TEMPERATURE,
+        frequency_penalty=LLMValues.FREQUENCY_PENALTY,
     )
     content = response.choices[0].message.content if response.choices else None
     return ExpertReply(reply=content or FALLBACK_REPLY, data=None)
@@ -149,9 +149,9 @@ async def stream_expert_reply(
     response_stream = await client.chat.completions.create(
         model=settings.MODEL_NAME,
         messages=build_llm_messages(history, system_prompt),
-        temperature=0.3,
+        temperature=LLMValues.TEMPERATURE,
         stream=True,
-        frequency_penalty=0.2,
+        frequency_penalty=LLMValues.FREQUENCY_PENALTY,
     )
 
     async for chunk in response_stream:
