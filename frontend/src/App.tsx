@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Header } from "./components/Header";
 import { HomeScreen } from "./screens/HomeScreen";
 import { IdentifyScreen } from "./screens/IdentifyScreen";
 import { ChatScreen } from "./screens/ChatScreen";
@@ -19,12 +18,14 @@ function App({ initialChatId = null }: AppProps) {
   const [activeChatId, setActiveChatId] = useState<string | null>(
     initialChatId
   );
+  const [activeChatTitle, setActiveChatTitle] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   const handleBack = useCallback(() => {
     setCurrentScreen("home");
     setActiveChatId(null);
+    setActiveChatTitle(null);
   }, []);
 
   useEffect(() => {
@@ -58,8 +59,9 @@ function App({ initialChatId = null }: AppProps) {
     };
   }, [currentScreen, handleBack]);
 
-  const handleOpenChat = (chatId: string) => {
+  const handleOpenChat = (chatId: string, title?: string) => {
     setActiveChatId(chatId);
+    setActiveChatTitle(title ?? null);
     setCurrentScreen("chat");
   };
 
@@ -68,33 +70,32 @@ function App({ initialChatId = null }: AppProps) {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-slate-900 text-white">
-      <Header
-        currentScreen={currentScreen}
-        user={user}
-        profileError={profileError}
-        onBack={handleBack}
-      />
-
+    <div className="app-shell flex h-full flex-col overflow-hidden text-ink">
       <main
         className={
-          currentScreen === "chat"
-            ? "min-h-0 flex-1 overflow-hidden"
-            : "min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          currentScreen === "home"
+            ? "min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            : "min-h-0 flex-1 overflow-hidden"
         }
       >
         {currentScreen === "home" && (
           <HomeScreen
+            user={user}
+            profileError={profileError}
             onNavigateToIdentify={() => setCurrentScreen("identify")}
             onOpenChat={handleOpenChat}
           />
         )}
         {currentScreen === "identify" && (
-          <IdentifyScreen onOpenChat={handleOpenChat} />
+          <IdentifyScreen
+            onBack={handleBack}
+            onOpenChat={handleOpenChat}
+          />
         )}
         {currentScreen === "chat" && (
           <ChatScreen
             chatId={activeChatId}
+            title={activeChatTitle}
             onChatCreated={handleChatCreated}
             onBack={handleBack}
           />

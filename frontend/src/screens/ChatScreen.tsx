@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { isAxiosError } from "axios";
-import { AlertCircle, Bot, Loader2, Send, Sparkles, User } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowUp, Leaf } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createChat, getChatMessages, streamChatMessage } from "../api/endpoints";
 import { getErrorMessage, isApiError } from "../api/errors";
 import type { ChatMessage } from "../api/types";
+import { BotanixMark } from "../components/BotanixMark";
 
 type HistoryState = "loading" | "ready" | "error";
 type ChatMessageStatus = "pending" | "error";
@@ -14,9 +15,16 @@ type UiChatMessage = ChatMessage & { status?: ChatMessageStatus };
 
 interface ChatScreenProps {
   chatId: string | null;
+  title?: string | null;
   onChatCreated?: (newChatId: string) => void;
   onBack?: () => void;
 }
+
+const QUICK_PROMPTS = [
+  "Почему желтеют листья?",
+  "Как часто поливать?",
+  "Когда пересаживать?",
+];
 
 function normalizeChatId(chatId: string | null): string | null {
   return chatId && chatId !== "new" ? chatId : null;
@@ -61,7 +69,12 @@ function getHistoryErrorMessage(error: unknown): {
   };
 }
 
-export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
+export function ChatScreen({
+  chatId,
+  title,
+  onChatCreated,
+  onBack,
+}: ChatScreenProps) {
   const initialChatId = normalizeChatId(chatId);
   const [currentChatId, setCurrentChatId] = useState<string | null>(
     initialChatId
@@ -84,6 +97,8 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
   const historyRequestIdRef = useRef(0);
   const streamedTextRef = useRef("");
   const requestAbortRef = useRef<AbortController | null>(null);
+
+  const headerTitle = title?.trim() || "AI-ботаник";
 
   useEffect(() => {
     return () => {
@@ -300,162 +315,245 @@ export function ChatScreen({ chatId, onChatCreated, onBack }: ChatScreenProps) {
   const isFatalHistoryError = historyState === "error" && historyFatal;
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col">
+    <div className="mx-auto flex h-full w-full max-w-md flex-col">
+      <header className="safe-top shrink-0 border-b border-line/80 bg-canvas/95 px-4 backdrop-blur-md">
+        <div className="grid h-14 grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-2">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Назад"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-ink transition active:scale-95"
+            >
+              <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.7} />
+            </button>
+          ) : (
+            <span aria-hidden="true" />
+          )}
+
+          <h1 className="min-w-0 truncate text-center font-serif text-[19px] leading-none font-semibold tracking-[-0.005em] text-ink">
+            {headerTitle}
+          </h1>
+
+          <span
+            aria-hidden="true"
+            className="flex h-9 w-9 items-center justify-center justify-self-end rounded-xl bg-accent-soft text-accent"
+          >
+            <Leaf className="h-[18px] w-[18px]" strokeWidth={1.6} />
+          </span>
+        </div>
+      </header>
+
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
-        {historyState === "loading" && (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-400">
-            <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
-            <span className="text-xs">Загрузка диалога...</span>
-          </div>
-        )}
+        <div className="mx-auto flex min-h-full w-full max-w-md flex-col px-5 pt-5 pb-2">
+          {historyState === "loading" && (
+            <div role="status" className="space-y-4">
+              <span className="sr-only">Загрузка диалога…</span>
+              <div aria-hidden="true" className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <span className="skeleton h-7 w-7 shrink-0 rounded-full" />
+                  <span className="skeleton block h-20 w-[72%] rounded-2xl rounded-bl-sm" />
+                </div>
+                <div className="flex justify-end">
+                  <span className="skeleton block h-10 w-[55%] rounded-2xl rounded-br-sm" />
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <span className="skeleton h-7 w-7 shrink-0 rounded-full" />
+                  <span className="skeleton block h-14 w-[64%] rounded-2xl rounded-bl-sm" />
+                </div>
+              </div>
+            </div>
+          )}
 
-        {historyState === "error" && historyError && (
-          <div
-            role="alert"
-            className="flex flex-col items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center text-xs text-red-400"
-          >
-            <AlertCircle className="h-5 w-5" />
-            <p>{historyError}</p>
-            {historyFatal ? (
-              onBack && (
+          {historyState === "error" && historyError && (
+            <div
+              role="alert"
+              className="my-auto flex flex-col items-center gap-3 rounded-3xl border border-line bg-surface p-6 text-center text-[12px] leading-relaxed text-muted shadow-card"
+            >
+              <AlertCircle className="h-5 w-5 text-danger" strokeWidth={1.7} />
+              <p>{historyError}</p>
+              {historyFatal ? (
+                onBack && (
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="mt-1 inline-flex h-10 items-center rounded-full border border-line px-4 text-[11.5px] font-semibold text-ink transition active:bg-surface-soft"
+                  >
+                    К диалогам
+                  </button>
+                )
+              ) : (
                 <button
                   type="button"
-                  onClick={onBack}
-                  className="rounded-lg border border-red-400/40 px-3 py-1.5 font-medium text-red-300 transition hover:bg-red-500/10"
+                  onClick={handleRetryHistory}
+                  className="mt-1 inline-flex h-10 items-center rounded-full bg-primary px-4 text-[11.5px] font-semibold text-primary-ink transition active:scale-95"
                 >
-                  К диалогам
+                  Повторить
                 </button>
-              )
-            ) : (
-              <button
-                type="button"
-                onClick={handleRetryHistory}
-                className="rounded-lg border border-emerald-500/40 px-3 py-1.5 font-medium text-emerald-300 transition hover:bg-emerald-500/10"
-              >
-                Повторить
-              </button>
-            )}
-          </div>
-        )}
-
-        {historyState === "ready" && messages.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-400">
-            <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-400">
-              <Sparkles className="h-6 w-6" />
+              )}
             </div>
-            <p className="text-sm font-medium text-slate-300">
-              Задайте вопрос ботанику
-            </p>
-            <p className="text-xs text-slate-500">
-              Например: «Почему сохнут кончики листьев у спатифиллума?»
-            </p>
-          </div>
-        )}
+          )}
 
-        {messages.map((message) => {
-          const isUser = message.role === "user";
-          const isPending = message.status === "pending";
-          const isFailed = message.status === "error";
+          {historyState === "ready" && messages.length === 0 && (
+            <div className="flex flex-1 flex-col items-center justify-center px-2 py-10 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent">
+                <BotanixMark className="h-7 w-7" />
+              </span>
+              <h2 className="mt-5 font-serif text-[30px] leading-[1.05] font-semibold tracking-[-0.015em] text-ink">
+                Спросите ботаника
+              </h2>
+              <p className="mt-2 max-w-[270px] text-[12.5px] leading-relaxed text-muted">
+                О поливе, свете, пересадке и болезнях — спокойно и по делу.
+              </p>
 
-          return (
-            <div
-              key={message.id}
-              className={`flex items-start gap-2.5 ${
-                isUser ? "flex-row-reverse" : "flex-row"
-              }`}
-            >
-              <div
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs ${
-                  isUser
-                    ? "bg-slate-700 text-slate-200"
-                    : "border border-emerald-500/30 bg-emerald-500/20 text-emerald-400"
-                }`}
-              >
-                {isUser ? (
-                  <User className="h-4 w-4" />
-                ) : (
-                  <Bot className="h-4 w-4" />
-                )}
+              <div className="mt-6 w-full max-w-[320px] border-l-2 border-accent/40 pl-4 text-left">
+                <p className="text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">
+                  Например
+                </p>
+                <p className="mt-1.5 font-serif text-[18px] leading-snug text-ink">
+                  «Почему сохнут кончики листьев у спатифиллума?»
+                </p>
               </div>
 
-              <div
-                className={`max-w-[80%] rounded-2xl p-3.5 text-xs leading-relaxed ${
-                  isUser
-                    ? "rounded-tr-none bg-emerald-600 text-white"
-                    : "space-y-2 rounded-tl-none border border-slate-700/60 bg-slate-800/80 text-slate-200 [&>h2]:text-sm [&>h2]:font-bold [&>h2]:text-emerald-400 [&>ul]:list-disc [&>ul]:pl-4 [&>p]:mb-1"
-                }`}
-              >
-                {isUser ? (
-                  <p className="whitespace-pre-wrap break-words">
-                    {message.content}
-                  </p>
-                ) : isPending ? (
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
-                    <span>Botanix печатает...</span>
-                  </div>
-                ) : message.content ? (
-                  <>
-                    <div className="overflow-x-auto break-words [&_a]:text-emerald-400 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-slate-500 [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-slate-900/70 [&_code]:px-1 [&_img]:h-auto [&_img]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-slate-900/70 [&_pre]:p-2 [&_strong]:font-bold [&_em]:italic [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-slate-600 [&_th]:bg-slate-700/60 [&_th]:px-2 [&_th]:py-1.5 [&_td]:border [&_td]:border-slate-700 [&_td]:px-2 [&_td]:py-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {message.content}
-                      </ReactMarkdown>
-                    </div>
-                    {isFailed && (
-                      <p className="flex items-center gap-1 text-[11px] text-red-300">
-                        <AlertCircle className="h-3 w-3 shrink-0" />
-                        Ответ прерван
-                      </p>
+              <div className="mt-5 flex max-w-[330px] flex-wrap justify-center gap-2">
+                {QUICK_PROMPTS.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => {
+                      setInputValue(question);
+                      textareaRef.current?.focus();
+                    }}
+                    className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[11.5px] leading-none text-muted transition active:scale-95 active:border-accent/40 active:text-ink"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.length > 0 && (
+            <div className="flex flex-col gap-4">
+              {messages.map((message) => {
+                const isUser = message.role === "user";
+                const isPending = message.status === "pending";
+                const isFailed = message.status === "error";
+
+                return (
+                  <div
+                    key={message.id}
+                    className={`animate-message flex items-start gap-2.5 ${
+                      isUser ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    {!isUser && (
+                      <span
+                        aria-hidden="true"
+                        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent"
+                      >
+                        <BotanixMark className="h-4 w-4" />
+                      </span>
                     )}
-                  </>
-                ) : isFailed ? (
-                  <p className="text-red-300">Не удалось получить ответ.</p>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
 
-        {error && (
-          <div
-            role="alert"
-            className="flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-center text-xs text-red-400"
-          >
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+                    <div
+                      className={`max-w-[82%] text-[14px] leading-[1.62] ${
+                        isUser
+                          ? "rounded-2xl rounded-br-sm bg-user-bubble px-4 py-2.5 text-ink"
+                          : "rounded-2xl rounded-bl-sm border border-line bg-surface px-4 py-3 text-ink shadow-card"
+                      }`}
+                    >
+                      {isUser ? (
+                        <p className="break-words whitespace-pre-wrap">
+                          {message.content}
+                        </p>
+                      ) : isPending ? (
+                        <div className="flex items-center gap-2.5 text-muted">
+                          <span className="flex items-center gap-1">
+                            <span className="typing-dot h-1.5 w-1.5 rounded-full bg-accent" />
+                            <span
+                              className="typing-dot h-1.5 w-1.5 rounded-full bg-accent"
+                              style={{ animationDelay: "140ms" }}
+                            />
+                            <span
+                              className="typing-dot h-1.5 w-1.5 rounded-full bg-accent"
+                              style={{ animationDelay: "280ms" }}
+                            />
+                          </span>
+                          <span className="text-[11px]">
+                            Botanix печатает…
+                          </span>
+                        </div>
+                      ) : message.content ? (
+                        <>
+                          <div className="botanix-markdown break-words">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {message.content}
+                            </ReactMarkdown>
+                          </div>
+                          {isFailed && (
+                            <p className="mt-2 flex items-center gap-1 text-[10.5px] text-danger">
+                              <AlertCircle
+                                className="h-3 w-3 shrink-0"
+                                strokeWidth={1.8}
+                              />
+                              Ответ прерван
+                            </p>
+                          )}
+                        </>
+                      ) : isFailed ? (
+                        <p className="text-danger">Не удалось получить ответ.</p>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {error && (
+            <div
+              role="alert"
+              className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-danger-soft px-3.5 py-2.5 text-center text-[11.5px] leading-relaxed text-danger"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" strokeWidth={1.7} />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {!isFatalHistoryError && (
-        <div className="safe-bottom-composer shrink-0 border-t border-slate-800 bg-slate-900/90 p-3 backdrop-blur">
-          <div className="flex items-end gap-2 rounded-2xl border border-slate-700 bg-slate-800/60 p-1.5 transition-colors focus-within:border-emerald-500/60">
-            <textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={(event) => setInputValue(event.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Напишите вопрос..."
-              rows={1}
-              maxLength={700}
-              enterKeyHint="send"
-              aria-label="Сообщение"
-              disabled={isComposerDisabled}
-              className="max-h-24 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-1.5 text-base leading-5 text-white placeholder-slate-500 focus:outline-none sm:text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={!inputValue.trim() || isComposerDisabled}
-              aria-label="Отправить сообщение"
-              className="shrink-0 rounded-xl bg-emerald-500 p-2 font-semibold text-slate-950 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+        <div className="safe-bottom-composer shrink-0 px-4 pt-2">
+          <div className="mx-auto w-full max-w-md">
+            <div className="flex items-end gap-1.5 rounded-full border border-line bg-surface py-1.5 pr-1.5 pl-4 shadow-card transition-colors focus-within:border-accent/45">
+              <textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Напишите вопрос…"
+                rows={1}
+                maxLength={700}
+                enterKeyHint="send"
+                aria-label="Сообщение"
+                disabled={isComposerDisabled}
+                className="max-h-24 min-h-[42px] flex-1 resize-none overflow-y-auto bg-transparent py-2.5 pr-1 text-[15px] leading-5 text-ink placeholder:text-muted focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSend()}
+                disabled={!inputValue.trim() || isComposerDisabled}
+                aria-label="Отправить сообщение"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-ink transition duration-200 active:scale-95 disabled:bg-surface-soft disabled:text-muted/45"
+              >
+                <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.2} />
+              </button>
+            </div>
           </div>
         </div>
       )}

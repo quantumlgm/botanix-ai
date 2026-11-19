@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -7,9 +7,31 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#F7F8F5" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Botanix AI — ботанический помощник в Telegram: определите растение по фото и получите советы по уходу."
+    />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("botanix-theme");
+          var theme = stored === "dark" || stored === "light" ? stored : "light";
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) {
+            meta.setAttribute(
+              "content",
+              theme === "dark" ? "#151914" : "#F7F8F5"
+            );
+          }
+        } catch (error) {}
+      })();
+    </script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <title>Botanix AI</title>
+    <title>Botanix AI — ботанический помощник</title>
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,5 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { BotanixMark } from "./BotanixMark";
 
 interface FatalScreenProps {
   title: string;
@@ -14,23 +15,38 @@ export function FatalScreen({
   onAction,
 }: FatalScreenProps) {
   return (
-    <div className="flex h-full items-center justify-center bg-slate-900 p-6 text-white">
+    <div className="app-shell flex h-full items-center justify-center bg-canvas p-6 text-ink">
       <div
         role="alert"
-        className="flex w-full max-w-sm flex-col items-center rounded-3xl border border-slate-800 bg-slate-800/60 p-6 text-center shadow-xl"
+        className="animate-rise w-full max-w-sm rounded-[30px] border border-line bg-surface p-7 text-center shadow-card"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-400">
-          <AlertTriangle className="h-6 w-6" />
+        <div className="flex items-center justify-center gap-2.5">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent">
+            <BotanixMark className="h-6 w-6" />
+          </span>
+          <span className="font-serif text-[23px] leading-none font-semibold tracking-[-0.01em] text-ink">
+            Botanix <span className="text-accent-ink">AI</span>
+          </span>
         </div>
-        <h1 className="mt-4 text-lg font-semibold text-white">{title}</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-400">{message}</p>
+
+        <div className="mx-auto mt-6 flex h-12 w-12 items-center justify-center rounded-full bg-sand-soft text-sand">
+          <AlertTriangle className="h-5 w-5" strokeWidth={1.7} />
+        </div>
+
+        <h1 className="mt-4 font-serif text-[26px] leading-tight font-semibold text-ink">
+          {title}
+        </h1>
+        <p className="mt-2 text-[12.5px] leading-relaxed text-muted">
+          {message}
+        </p>
+
         {actionLabel && onAction && (
           <button
             type="button"
             onClick={onAction}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 active:scale-[0.99]"
+            className="mt-6 flex h-[48px] w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-[13.5px] font-semibold text-primary-ink shadow-float transition active:scale-[0.985]"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4" strokeWidth={1.9} />
             {actionLabel}
           </button>
         )}

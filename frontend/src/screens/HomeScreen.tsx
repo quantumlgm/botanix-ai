@@ -3,21 +3,45 @@ import { isAxiosError } from "axios";
 import {
   AlertCircle,
   Camera,
+  Leaf,
   Loader2,
   MessageCircle,
-  Plus,
   Trash2,
+  UserRound,
 } from "lucide-react";
 import { deleteChat, getChats } from "../api/endpoints";
 import { getErrorMessage } from "../api/errors";
-import type { ChatItem } from "../api/types";
+import type { ChatItem, UserProfile } from "../api/types";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 interface HomeScreenProps {
+  user: UserProfile | null;
+  profileError: string | null;
   onNavigateToIdentify: () => void;
-  onOpenChat: (chatId: string) => void;
+  onOpenChat: (chatId: string, title?: string) => void;
+}
+
+function formatChatDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function getInitial(user: UserProfile | null): string | null {
+  const initial = user?.first_name?.trim().charAt(0).toUpperCase();
+  return initial || null;
 }
 
 export function HomeScreen({
+  user,
+  profileError,
   onNavigateToIdentify,
   onOpenChat,
 }: HomeScreenProps) {
@@ -31,6 +55,13 @@ export function HomeScreen({
   );
   const [reloadKey, setReloadKey] = useState(0);
   const deleteAbortRef = useRef<AbortController | null>(null);
+
+  const initial = getInitial(user);
+  const profileLabel = profileError
+    ? "Профиль недоступен"
+    : user
+      ? `Профиль: ${user.first_name}`
+      : "Загрузка профиля";
 
   const loadChats = useCallback(async (signal: AbortSignal) => {
     try {
@@ -119,50 +150,93 @@ export function HomeScreen({
   const errorMessage = loadError ?? deleteError;
 
   return (
-    <div className="safe-bottom mx-auto flex max-w-md flex-col gap-5 p-4">
-      <div className="flex flex-col gap-3">
+    <div className="safe-bottom mx-auto w-full max-w-md px-6">
+      <header className="safe-top">
+        <div className="flex items-start justify-between gap-4 pt-3">
+          <div className="min-w-0">
+            <h1 className="truncate font-serif text-[34px] leading-none font-medium tracking-[-0.02em] text-ink">
+              Botanix <span className="text-accent-ink">AI</span>
+            </h1>
+            <p className="mt-2 text-[11.5px] font-medium tracking-[0.02em] text-muted">
+              ботанический помощник
+            </p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 pt-1">
+            <ThemeToggle />
+            <div
+              className="relative flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface"
+              role="img"
+              aria-label={profileLabel}
+              title={profileLabel}
+            >
+              {initial ? (
+                <span className="text-[12px] font-semibold text-ink">
+                  {initial}
+                </span>
+              ) : (
+                <UserRound className="h-[17px] w-[17px] text-muted" strokeWidth={1.6} />
+              )}
+              <span
+                aria-hidden="true"
+                className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2 border-canvas ${
+                  profileError ? "bg-sand" : "bg-primary"
+                }`}
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section className="mt-7 flex flex-col gap-2.5" aria-label="Действия">
         <button
           type="button"
           onClick={onNavigateToIdentify}
-          className="flex w-full items-center gap-4 rounded-2xl bg-emerald-500 p-5 text-left text-slate-950 shadow-lg shadow-emerald-500/15 transition hover:bg-emerald-400 active:scale-[0.99]"
+          className="flex h-[54px] w-full items-center justify-center gap-2.5 rounded-full bg-primary text-[15px] font-semibold text-primary-ink shadow-float transition duration-200 active:scale-[0.985] active:brightness-[0.98]"
         >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-950/10">
-            <Camera className="h-6 w-6" />
-          </span>
-          <span>
-            <span className="block text-base font-bold">Определить растение</span>
-            <span className="mt-1 block text-xs text-slate-900/75">
-              Сделайте фото или выберите снимок
-            </span>
-          </span>
+          <Camera className="h-[19px] w-[19px]" strokeWidth={1.9} />
+          Определить растение
         </button>
+
         <button
           type="button"
-          onClick={() => onOpenChat("new")}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/60 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-emerald-500/50"
+          onClick={() => onOpenChat("new", "AI-ботаник")}
+          className="flex h-[46px] w-full items-center justify-center gap-2.5 rounded-full border border-line bg-surface/70 text-[13px] font-medium text-ink transition duration-200 active:scale-[0.99] active:bg-surface"
         >
-          <Plus className="h-4 w-4" />
-          Новый диалог
+          <MessageCircle className="h-[17px] w-[17px] text-accent-ink" strokeWidth={1.7} />
+          Новый диалог с AI-ботаником
         </button>
-      </div>
+      </section>
 
-      <section>
-        <h1 className="mb-3 text-sm font-semibold text-slate-300">Ваши диалоги</h1>
+      <section className="mt-9" aria-labelledby="home-chats-title">
+        <div className="flex items-baseline justify-between">
+          <h2
+            id="home-chats-title"
+            className="font-serif text-[26px] leading-none font-semibold tracking-[-0.01em] text-ink"
+          >
+            Ваши диалоги
+          </h2>
+          {chats.length > 0 && (
+            <span className="text-[12px] font-medium tabular-nums text-muted">
+              {chats.length}
+            </span>
+          )}
+        </div>
 
         {errorMessage && (
           <div
             role="alert"
-            className="mb-3 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400"
+            className="mt-4 flex items-start gap-2.5 rounded-2xl bg-danger-soft p-3.5 text-[12px] leading-relaxed text-danger"
           >
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.7} />
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <span>{errorMessage}</span>
               {loadError && (
                 <button
                   type="button"
                   onClick={handleRetry}
                   disabled={isLoading}
-                  className="h-10 self-start rounded-lg border border-red-400/40 px-4 font-medium text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="self-start text-[11.5px] font-semibold underline underline-offset-2 disabled:opacity-50"
                 >
                   Повторить
                 </button>
@@ -172,85 +246,99 @@ export function HomeScreen({
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-slate-400">
-            <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
-            <span className="text-xs">Загрузка диалогов...</span>
+          <div role="status" className="mt-2">
+            <span className="sr-only">Загрузка диалогов…</span>
+            <ul aria-hidden="true" className="divide-y divide-line">
+              {[0, 1, 2].map((item) => (
+                <li key={item} className="flex items-center gap-3.5 py-3.5">
+                  <span className="skeleton h-12 w-12 shrink-0 rounded-2xl" />
+                  <span className="min-w-0 flex-1">
+                    <span className="skeleton block h-3 w-2/3 rounded-full" />
+                    <span className="skeleton mt-2 block h-2.5 w-1/3 rounded-full" />
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : chats.length === 0 && !loadError ? (
-          <div className="flex flex-col items-center gap-2 rounded-2xl border border-slate-800 bg-slate-800/30 p-8 text-center">
-            <MessageCircle className="h-7 w-7 text-emerald-400" />
-            <p className="text-sm text-slate-200">Пока нет диалогов</p>
-            <p className="text-xs text-slate-500">
-              Начните новый разговор или сначала определите растение
+          <div className="mt-5 flex flex-col items-center border-t border-line py-12 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent">
+              <Leaf className="h-6 w-6" strokeWidth={1.6} />
+            </span>
+            <h3 className="mt-4 font-serif text-[24px] leading-tight font-semibold text-ink">
+              Пока здесь тихо
+            </h3>
+            <p className="mt-2 max-w-[260px] text-[12.5px] leading-relaxed text-muted">
+              Сфотографируйте растение — здесь появятся ваши диалоги и заметки
+              о нём.
             </p>
           </div>
         ) : chats.length > 0 ? (
-          <ul className="flex flex-col gap-2">
+          <ul className="mt-1 divide-y divide-line">
             {chats.map((chat) => {
               const isConfirming = confirmDeleteChatId === chat.id;
               const isDeleting = deletingChatId === chat.id;
 
               return (
-                <li
-                  key={chat.id}
-                  className="flex items-center gap-1 rounded-2xl border border-slate-800 bg-slate-800/40 p-1 transition hover:border-emerald-500/40"
-                >
+                <li key={chat.id}>
                   {isConfirming ? (
-                    <div className="flex min-w-0 flex-1 items-center gap-2 py-0.5 pl-2">
-                      <span className="min-w-0 flex-1 truncate text-sm text-slate-200">
+                    <div className="flex items-center gap-2 py-3.5">
+                      <span className="min-w-0 flex-1 text-[12.5px] text-ink">
                         Удалить диалог?
                       </span>
                       <button
                         type="button"
                         onClick={() => void handleDeleteChat(chat.id)}
                         disabled={deletingChatId !== null}
-                        className="h-10 shrink-0 rounded-lg bg-red-500/15 px-3 text-xs font-medium text-red-300 transition hover:bg-red-500/25 disabled:opacity-50"
+                        className="h-9 shrink-0 rounded-full bg-danger-soft px-3.5 text-[11.5px] font-semibold text-danger transition active:scale-95 disabled:opacity-50"
                       >
                         Удалить
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteChatId(null)}
-                        className="h-10 shrink-0 rounded-lg px-3 text-xs font-medium text-slate-300 transition hover:bg-slate-700/60"
+                        className="h-9 shrink-0 rounded-full px-3 text-[11.5px] font-medium text-muted transition active:bg-surface-soft"
                       >
                         Отмена
                       </button>
                     </div>
                   ) : (
-                    <>
+                    <div className="flex items-center gap-1 py-3.5">
                       <button
                         type="button"
-                        onClick={() => onOpenChat(chat.id)}
+                        onClick={() => onOpenChat(chat.id, chat.title)}
                         disabled={isDeleting}
-                        className="flex min-w-0 flex-1 items-center gap-3 p-2 text-left disabled:opacity-60"
+                        className="flex min-w-0 flex-1 items-center gap-3.5 rounded-2xl text-left disabled:opacity-60"
                       >
-                        <MessageCircle className="h-5 w-5 shrink-0 text-emerald-400" />
+                        <span
+                          aria-hidden="true"
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent"
+                        >
+                          <Leaf className="h-[22px] w-[22px]" strokeWidth={1.5} />
+                        </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-slate-200">
+                          <span className="block truncate text-[14.5px] font-semibold tracking-[-0.005em] text-ink">
                             {chat.title || "Диалог о растении"}
                           </span>
-                          <span className="block truncate text-xs text-slate-500">
-                            {chat.plant_context ||
-                              new Date(chat.created_at).toLocaleDateString(
-                                "ru-RU"
-                              )}
+                          <span className="mt-1 block truncate text-[11.5px] text-muted">
+                            {formatChatDate(chat.created_at)}
                           </span>
                         </span>
                       </button>
                       <button
                         type="button"
-                        aria-label="Удалить диалог"
+                        aria-label={`Удалить диалог ${chat.title || "о растении"}`}
                         disabled={deletingChatId !== null}
                         onClick={() => setConfirmDeleteChatId(chat.id)}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted/70 transition active:scale-95 active:bg-danger-soft active:text-danger disabled:opacity-50"
                       >
                         {isDeleting ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.7} />
                         ) : (
-                          <Trash2 className="h-5 w-5" />
+                          <Trash2 className="h-4 w-4" strokeWidth={1.6} />
                         )}
                       </button>
-                    </>
+                    </div>
                   )}
                 </li>
               );
