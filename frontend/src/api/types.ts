@@ -29,12 +29,24 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface PlantCareInfo {
+  light: string;
+  watering: string;
+  temperature: string;
+  humidity: string;
+  care_complexity: string;
+  complexity_rate: number;
+  is_toxic: boolean;
+  toxicity_note: string;
+}
+
 export interface PlantIdentificationResult {
   chat_id: string;
   scientific_name: string;
   family_name: string;
   common_names: string[];
   confidence: number;
+  data: PlantCareInfo | null;
   reply: string;
 }
 
@@ -85,6 +97,23 @@ export function isChatCreateResponse(
   );
 }
 
+export function isPlantCareInfo(value: unknown): value is PlantCareInfo {
+  return (
+    isRecord(value) &&
+    typeof value.light === "string" &&
+    typeof value.watering === "string" &&
+    typeof value.temperature === "string" &&
+    typeof value.humidity === "string" &&
+    typeof value.care_complexity === "string" &&
+    typeof value.complexity_rate === "number" &&
+    Number.isFinite(value.complexity_rate) &&
+    value.complexity_rate >= 0 &&
+    value.complexity_rate <= 5 &&
+    typeof value.is_toxic === "boolean" &&
+    typeof value.toxicity_note === "string"
+  );
+}
+
 export function isPlantIdentificationResult(
   value: unknown
 ): value is PlantIdentificationResult {
@@ -97,6 +126,7 @@ export function isPlantIdentificationResult(
     value.common_names.every((name) => typeof name === "string") &&
     typeof value.confidence === "number" &&
     Number.isFinite(value.confidence) &&
+    (value.data === null || isPlantCareInfo(value.data)) &&
     typeof value.reply === "string"
   );
 }

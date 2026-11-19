@@ -49,8 +49,12 @@ async def identify_handle(
         plant_context=plant_data.context_str,
     )
 
-    reply = await send_message_flow(
-        session=session, chat_id=chat.id, user_id=current_user.id, message=user_message
+    result = await send_message_flow(
+        session=session,
+        chat_id=chat.id,
+        user_id=current_user.id,
+        message=user_message,
+        structured=True,
     )
 
     best = plant_data.best_result
@@ -60,5 +64,6 @@ async def identify_handle(
         family_name=plant_data.family_name,
         common_names=best.species.common_names if best else [],
         confidence=best.score if best else 0.0,
-        reply=reply,
+        data=result.data,
+        reply=result.reply,
     )

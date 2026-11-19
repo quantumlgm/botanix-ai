@@ -35,9 +35,10 @@ export function setupTelegramMock(): void {
       console.log("[Telegram Mock] WebApp.close() called");
     },
     themeParams: {
-      bg_color: "#0f172a",
-      text_color: "#ffffff",
-      button_color: "#10b981",
+      bg_color: "#f7f8f5",
+      secondary_bg_color: "#ffffff",
+      text_color: "#18201d",
+      button_color: "#164234",
       button_text_color: "#ffffff",
     },
     isExpanded: true,

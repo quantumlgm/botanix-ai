@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from app.services.shemas import PlantCareInfo
+
 
 class PlantSpecies(BaseModel):
     scientific_name: str = Field(
@@ -57,4 +59,5 @@ class PlantIdentifyResponse(BaseModel):
     family_name: str
     common_names: list[str] = Field(default_factory=list)
     confidence: float
+    data: PlantCareInfo | None = None
     reply: str

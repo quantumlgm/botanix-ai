@@ -32,6 +32,10 @@ export interface StreamChatOptions extends RequestOptions {
   idleTimeoutMs?: number;
 }
 
+export interface IdentifyPlantOptions extends RequestOptions {
+  question?: string;
+}
+
 const SSE_IDLE_TIMEOUT_MS = 60_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -383,10 +387,15 @@ export async function streamChatMessage(
 
 export async function identifyPlant(
   file: File,
-  options: RequestOptions = {}
+  options: IdentifyPlantOptions = {}
 ): Promise<PlantIdentificationResult> {
   const formData = new FormData();
   formData.append("image", file);
+
+  const question = options.question?.trim();
+  if (question) {
+    formData.append("question", question);
+  }
 
   const response = await apiClient.post<unknown>("/plants/identify", formData, {
     signal: options.signal,

@@ -58,7 +58,7 @@ async def create_chat_handle(
         message=payload.message,
     )
 
-    return ChatCreateResponse(chat_id=created_chat.id, reply=ai_reply)
+    return ChatCreateResponse(chat_id=created_chat.id, reply=ai_reply.reply)
 
 
 @router.post(
@@ -81,7 +81,7 @@ async def send_message_handle(
         user_id=current_user.id,
         message=payload.message,
     )
-    return BotReplyResponse(reply=ai_reply)
+    return BotReplyResponse(reply=ai_reply.reply)
 
 
 @router.post("/{chat_id}/stream", summary="Stream chat message reply")

@@ -1,6 +1,5 @@
 import { setupTelegramMock } from "./mock";
-
-const APP_BACKGROUND_COLOR = "#0f172a";
+import { applyTheme, resolveTheme } from "../theme/theme";
 
 export function initTelegramApp(): void {
   setupTelegramMock();
@@ -18,14 +17,9 @@ export function initTelegramApp(): void {
     if (typeof webApp.disableVerticalSwipes === "function") {
       webApp.disableVerticalSwipes();
     }
-
-    if (typeof webApp.setHeaderColor === "function") {
-      webApp.setHeaderColor(APP_BACKGROUND_COLOR);
-    }
-
-    if (typeof webApp.setBackgroundColor === "function") {
-      webApp.setBackgroundColor(APP_BACKGROUND_COLOR);
-    }
   } catch {
+    // Older Telegram clients may not support vertical swipe control.
   }
+
+  applyTheme(resolveTheme());
 }
