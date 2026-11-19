@@ -132,7 +132,11 @@ async def get_messages_handle(
     )
 
 
-@router.get("", response_model=list[UserChatResponse], summary="Get all user chats")
+@router.get(
+    "", 
+    response_model=list[UserChatResponse], 
+    summary="Get all user chats"
+)
 async def get_chats_handle(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

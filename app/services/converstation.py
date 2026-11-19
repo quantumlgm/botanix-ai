@@ -7,15 +7,16 @@ from uuid import UUID
 from openai import AsyncOpenAI, OpenAIError
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import ValidationError
+from sqlalchemy import func, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.chat.models import ChatMessage
+from app.api.chat.models import Chat, ChatMessage
 from app.api.chat.service import get_chat_messages, get_user_chat
 from app.core.config import settings
 from app.core.enums import Roles
 from app.services.prompts import PLANT_EXPERT_SYSTEM_PROMPT, STRUCTURED_ANALYSIS_ADDON
-from app.services.shemas import PlantAnalysisResponse, PlantCareInfo
+from app.api.identify.schemas import PlantAnalysisResponse, PlantCareInfo
 
 client = AsyncOpenAI(
     base_url=settings.PROVIDER_URL,
@@ -42,6 +43,13 @@ async def create_message(
     message = ChatMessage(chat_id=chat_id, role=role, content=content)
 
     session.add(message)
+
+    await session.execute(
+        update(Chat).where(Chat.id == chat_id).values(
+            updated_at=func.now()
+        )
+    )
+
     await session.commit()
     await session.refresh(message)
 
