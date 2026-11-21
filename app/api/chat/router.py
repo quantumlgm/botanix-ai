@@ -1,7 +1,8 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,7 @@ from app.api.chat.schemas import (
     BotReplyResponse,
     ChatAskRequest,
     ChatCreateResponse,
+    MediaUploadResponse,
     MessageHistoryResponse,
     UserChatResponse,
     UserMessageRequest,
@@ -28,8 +30,10 @@ from app.api.chat.converstation import (
     send_message_flow,
     send_message_stream_flow,
 )
+from app.services.images.service import image_validate
 from app.services.limiter import limiter
 from app.services.postgres import get_session
+from app.services.s3 import upload_image
 
 router = APIRouter(prefix="/chats", tags=["Chats"])
 
@@ -84,7 +88,12 @@ async def send_message_handle(
     return BotReplyResponse(reply=ai_reply.reply)
 
 
-@router.post("/{chat_id}/stream", summary="Stream chat message reply")
+@router.post(
+    "/{chat_id}/stream", 
+    summary="Stream chat message reply", 
+    response_model=None, 
+    status_code=status.HTTP_201_CREATED
+)
 @limiter.limit(RateLimit.MEDIUM)
 async def send_message_stream_handle(
     request: Request,
@@ -112,6 +121,29 @@ async def send_message_stream_handle(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post(
+    "/upload",
+    response_model=MediaUploadResponse, 
+    summary="Upload an image in chat", 
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_chat_image_handle(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user)
+):
+    await image_validate(file)
+    try:
+        file_bytes = await file.read()
+        image_url = await upload_image(file_bytes=file_bytes)
+    except BotoCoreError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Сервис хранения файлов временно недоступен",
+        )
+    return MediaUploadResponse(image_url=image_url)
+
 
 
 @router.get(

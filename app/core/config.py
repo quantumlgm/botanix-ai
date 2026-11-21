@@ -8,6 +8,7 @@ class AppSettings(BaseSettings):
     PROVIDER_API_KEY: str
     PROVIDER_URL: str = "https://openrouter.ai/api/v1"
     MODEL_NAME: str = "baidu/ernie-5.5-flash-preview:free"
+    MULTIMODAL_MODEL_NAME: str = "inclusionai/ling-3.2-flash:free"
 
     POSTGRES_USER: str
     POSTGRES_DB: str
@@ -21,6 +22,12 @@ class AppSettings(BaseSettings):
     DEBUG: bool = False
     CORS_ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    S3_ACCESS_KEY: str
+    S3_SECRET_KEY: str
+    S3_BUCKET_NAME: str = "botanix-ai"
+    S3_ENDPOINT_URL: str = "https://yandexcloud.net"
+    S3_REGION: str = "ru-central1"
+    
     @property
     def pg_psycopg_dsn(self) -> str:
         return str(
