@@ -1,5 +1,3 @@
-# pyright: reportGeneralTypeIssues=false
-
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -24,8 +22,22 @@ async def get_s3_client() -> AsyncGenerator[S3Client, None]:
         yield client
 
 
+def build_image_url(key: str) -> str:
+    if key.startswith(("http://", "https://")):
+        return key
+
+    base = settings.S3_PUBLIC_BASE_URL.rstrip("/")
+    if not base:
+        base = f"{settings.S3_ENDPOINT_URL.rstrip('/')}/{settings.S3_BUCKET_NAME}"
+
+    return f"{base}/{key.lstrip('/')}"
+
+
 async def upload_image(
-    file_bytes: bytes, folder: str = "chat_images", extension: str = "jpg"
+    file_bytes: bytes,
+    folder: str = "chat_images",
+    extension: str = "jpg",
+    content_type: str = "image/jpeg",
 ) -> str:
     filename = f"{uuid.uuid4()}.{extension}"
     key = f"{folder}/{filename}"
@@ -35,7 +47,7 @@ async def upload_image(
             Bucket=settings.S3_BUCKET_NAME,
             Key=key,
             Body=file_bytes,
-            ContentType=f"image/{extension}",
+            ContentType=content_type,
         )
 
     return key

@@ -26,7 +26,9 @@ dependencies = [
     "slowapi>=0.1.10",
     "sqlalchemy[asyncio]>=2.1.6",
     "telegramify-markdown>=1.4.2",
+    "types-aioboto3[s3]>=13.2.0.post3",
     "types-aiobotocore-s3>=3.10.0",
+    "types-aiobotocore[s3]>=3.10.0",
     "uvicorn>=0.54.0",
 ]
 

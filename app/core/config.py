@@ -25,9 +25,10 @@ class AppSettings(BaseSettings):
     S3_ACCESS_KEY: str
     S3_SECRET_KEY: str
     S3_BUCKET_NAME: str = "botanix-ai"
-    S3_ENDPOINT_URL: str = "https://yandexcloud.net"
+    S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
+    S3_PUBLIC_BASE_URL: str = ""
     S3_REGION: str = "ru-central1"
-    
+
     @property
     def pg_psycopg_dsn(self) -> str:
         return str(

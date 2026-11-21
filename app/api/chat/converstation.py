@@ -13,10 +13,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.models import Chat, ChatMessage
 from app.api.chat.service import get_chat_messages, get_user_chat
+from app.api.identify.schemas import PlantAnalysisResponse, PlantCareInfo
 from app.core.config import settings
 from app.core.enums import LLMValues, Roles
-from app.services.prompts import PLANT_EXPERT_SYSTEM_PROMPT, STRUCTURED_ANALYSIS_ADDON
-from app.api.identify.schemas import PlantAnalysisResponse, PlantCareInfo
+from app.services.prompts import (
+    IMAGE_ANALYSIS_ADDON,
+    PLANT_EXPERT_SYSTEM_PROMPT,
+    STRUCTURED_ANALYSIS_ADDON,
+)
+from app.services.s3 import build_image_url
 
 client = AsyncOpenAI(
     base_url=settings.PROVIDER_URL,
@@ -28,6 +33,8 @@ client = AsyncOpenAI(
 )
 
 LLM_HISTORY_LIMIT = 10
+IMAGE_HISTORY_WINDOW = 3
+OLD_IMAGE_MARKER = "[Ранее отправленное фото]"
 FALLBACK_REPLY = "Не удалось получить ответ от модели."
 
 
@@ -38,16 +45,23 @@ class ExpertReply:
 
 
 async def create_message(
-    session: AsyncSession, chat_id: UUID, role: Roles, content: str
+    session: AsyncSession,
+    chat_id: UUID,
+    role: Roles,
+    content: str,
+    image_urls: Sequence[str] | None = None,
 ) -> ChatMessage:
-    message = ChatMessage(chat_id=chat_id, role=role, content=content)
+    message = ChatMessage(
+        chat_id=chat_id,
+        role=role,
+        content=content,
+        image_urls=list(image_urls or ()),
+    )
 
     session.add(message)
 
     await session.execute(
-        update(Chat).where(Chat.id == chat_id).values(
-            updated_at=func.now()
-        )
+        update(Chat).where(Chat.id == chat_id).values(updated_at=func.now())
     )
 
     await session.commit()
@@ -56,18 +70,56 @@ async def create_message(
     return message
 
 
+def has_recent_images(history: Sequence[ChatMessage]) -> bool:
+    return any(msg.image_urls for msg in history[-IMAGE_HISTORY_WINDOW:])
+
+
+def build_system_prompt(plant_context: str | None, include_image_analysis: bool) -> str:
+    system_prompt = PLANT_EXPERT_SYSTEM_PROMPT
+    if plant_context:
+        system_prompt += f"\nТекущее изучаемое растение: {plant_context}"
+    if include_image_analysis:
+        system_prompt += f"\n\n{IMAGE_ANALYSIS_ADDON}"
+    return system_prompt
+
+
+def select_model_name(structured: bool, has_images: bool) -> str:
+    if structured or not has_images:
+        return settings.MODEL_NAME
+    return settings.MULTIMODAL_MODEL_NAME or settings.MODEL_NAME
+
+
 def build_llm_messages(
     history: Sequence[ChatMessage], system_prompt: str
 ) -> list[ChatCompletionMessageParam]:
     llm_messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": system_prompt}
     ]
+    recent_start = max(len(history) - IMAGE_HISTORY_WINDOW, 0)
 
-    for msg in history:
+    for index, msg in enumerate(history):
+        content: str | list[dict[str, object]] = msg.content
+        if index >= recent_start and msg.image_urls:
+            text = msg.content.strip()
+            content = [{"type": "text", "text": text}]
+            content.extend(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": build_image_url(image_url)},
+                }
+                for image_url in msg.image_urls
+            )
+        elif msg.image_urls:
+            content = (
+                f"{msg.content}\n\n{OLD_IMAGE_MARKER}"
+                if msg.content.strip()
+                else OLD_IMAGE_MARKER
+            )
+
         llm_messages.append(
             cast(
                 ChatCompletionMessageParam,
-                {"role": msg.role.value, "content": msg.content},
+                {"role": msg.role.value, "content": content},
             )
         )
 
@@ -79,12 +131,17 @@ async def send_message_flow(
     chat_id: UUID,
     user_id: UUID,
     message: str,
+    image_urls: Sequence[str] | None = None,
     structured: bool = False,
 ) -> ExpertReply:
     chat_record = await get_user_chat(session=session, chat_id=chat_id, user_id=user_id)
 
     await create_message(
-        session=session, chat_id=chat_id, role=Roles.USER, content=message
+        session=session,
+        chat_id=chat_id,
+        role=Roles.USER,
+        content=message,
+        image_urls=image_urls,
     )
 
     history = await get_chat_messages(
@@ -109,15 +166,15 @@ async def generate_expert_reply(
     plant_context: str | None = None,
     structured: bool = False,
 ) -> ExpertReply:
-    system_prompt = PLANT_EXPERT_SYSTEM_PROMPT
-    if plant_context:
-        system_prompt += f"\nТекущее изучаемое растение: {plant_context}"
+    has_images = has_recent_images(history)
+    system_prompt = build_system_prompt(plant_context, has_images)
+    model_name = select_model_name(structured=structured, has_images=has_images)
 
     if structured:
         structured_prompt = f"{system_prompt}\n\n{STRUCTURED_ANALYSIS_ADDON}"
         try:
             response = await client.beta.chat.completions.parse(
-                model=settings.MODEL_NAME,
+                model=model_name,
                 messages=build_llm_messages(history, structured_prompt),
                 temperature=LLMValues.TEMPERATURE,
                 frequency_penalty=LLMValues.FREQUENCY_PENALTY,
@@ -130,7 +187,7 @@ async def generate_expert_reply(
             pass
 
     response = await client.chat.completions.create(
-        model=settings.MODEL_NAME,
+        model=model_name,
         messages=build_llm_messages(history, system_prompt),
         temperature=LLMValues.TEMPERATURE,
         frequency_penalty=LLMValues.FREQUENCY_PENALTY,
@@ -142,12 +199,12 @@ async def generate_expert_reply(
 async def stream_expert_reply(
     history: Sequence[ChatMessage], plant_context: str | None = None
 ) -> AsyncGenerator[str, None]:
-    system_prompt = PLANT_EXPERT_SYSTEM_PROMPT
-    if plant_context:
-        system_prompt += f"\nТекущее изучаемое растение: {plant_context}."
+    has_images = has_recent_images(history)
+    system_prompt = build_system_prompt(plant_context, has_images)
+    model_name = select_model_name(structured=False, has_images=has_images)
 
     response_stream = await client.chat.completions.create(
-        model=settings.MODEL_NAME,
+        model=model_name,
         messages=build_llm_messages(history, system_prompt),
         temperature=LLMValues.TEMPERATURE,
         stream=True,
@@ -164,10 +221,15 @@ async def send_message_stream_flow(
     chat_id: UUID,
     plant_context: str | None,
     message: str,
+    image_urls: Sequence[str] | None = None,
 ) -> AsyncGenerator[str, None]:
     try:
         await create_message(
-            session=session, chat_id=chat_id, role=Roles.USER, content=message
+            session=session,
+            chat_id=chat_id,
+            role=Roles.USER,
+            content=message,
+            image_urls=image_urls,
         )
 
         history = await get_chat_messages(
