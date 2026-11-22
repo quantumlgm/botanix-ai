@@ -219,3 +219,19 @@ export async function captureImageFromVideo(
 
   return encodeJpegWithinLimit(canvas, `botanix-${Date.now()}.jpg`);
 }
+
+export function getImageErrorMessage(error: unknown): string {
+  if (error instanceof ImageError) {
+    if (error.code === "heic_not_supported") {
+      return "Формат HEIC не поддерживается. Выберите фото в формате JPG, PNG или WebP.";
+    }
+    if (error.code === "too_large") {
+      return "Файл слишком большой. Максимальный размер — 5 МБ.";
+    }
+    if (error.code === "unsupported_type") {
+      return "Этот формат файла не поддерживается. Выберите JPG, PNG или WebP.";
+    }
+  }
+
+  return "Не удалось обработать изображение. Попробуйте другое фото.";
+}
