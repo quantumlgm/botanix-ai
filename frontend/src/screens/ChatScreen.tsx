@@ -24,6 +24,8 @@ import { getErrorMessage, isApiError } from "../api/errors";
 import type { ChatMessage } from "../api/types";
 import { BotanixMark } from "../components/BotanixMark";
 import { BottomSheet } from "../components/BottomSheet";
+import { CameraCapture } from "../components/CameraCapture";
+import type { CameraCaptureHandle } from "../components/CameraCapture";
 import {
   ImageError,
   SUPPORTED_IMAGE_ACCEPT,
@@ -52,6 +54,12 @@ const QUICK_PROMPTS = [
   "Как часто поливать?",
   "Когда пересаживать?",
 ];
+
+const COMPOSER_MAX_HEIGHT = 120;
+
+function hasCoarsePointer(): boolean {
+  return window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+}
 
 function normalizeChatId(chatId: string | null): string | null {
   return chatId && chatId !== "new" ? chatId : null;
@@ -123,7 +131,7 @@ export function ChatScreen({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraRef = useRef<CameraCaptureHandle | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentPreviewUrlRef = useRef<string | null>(null);
   const attachmentUploadIdRef = useRef(0);
@@ -203,11 +211,15 @@ export function ChatScreen({
     container.scrollTop = container.scrollHeight;
   }, [messages, isSending]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 96)}px`;
+    const contentHeight = textarea.scrollHeight;
+    textarea.style.height = `${Math.min(contentHeight, COMPOSER_MAX_HEIGHT)}px`;
+    textarea.style.overflowY =
+      contentHeight > COMPOSER_MAX_HEIGHT ? "auto" : "hidden";
   }, [inputValue]);
 
   const handleMessagesScroll = () => {
@@ -246,7 +258,7 @@ export function ChatScreen({
 
   const handleTakePhoto = () => {
     setIsAttachmentSheetOpen(false);
-    openFilePicker(cameraInputRef.current);
+    cameraRef.current?.open();
   };
 
   const handleChooseFromGallery = () => {
@@ -254,15 +266,7 @@ export function ChatScreen({
     openFilePicker(galleryInputRef.current);
   };
 
-  const handleAttachmentChange = async (
-    event: ChangeEvent<HTMLInputElement>
-  ) => {
-    const input = event.currentTarget;
-    const file = input.files?.[0] ?? null;
-    input.value = "";
-
-    if (!file) return;
-
+  const processAttachmentFile = async (file: File) => {
     const requestId = attachmentUploadIdRef.current + 1;
     attachmentUploadIdRef.current = requestId;
     attachmentAbortRef.current?.abort();
@@ -327,6 +331,18 @@ export function ChatScreen({
         setIsUploadingAttachment(false);
       }
     }
+  };
+
+  const handleAttachmentChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0] ?? null;
+    input.value = "";
+
+    if (!file) return;
+
+    await processAttachmentFile(file);
   };
 
   const handleSend = async () => {
@@ -469,13 +485,20 @@ export function ChatScreen({
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !event.nativeEvent.isComposing
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
     ) {
-      event.preventDefault();
-      void handleSend();
+      return;
     }
+
+    // On touch keyboards Enter must insert a newline; sending stays on the button.
+    if (hasCoarsePointer()) {
+      return;
+    }
+
+    event.preventDefault();
+    void handleSend();
   };
 
   const isComposerDisabled = isSending || historyState !== "ready";
@@ -811,10 +834,10 @@ export function ChatScreen({
                 }
                 rows={1}
                 maxLength={700}
-                enterKeyHint="send"
+                enterKeyHint="enter"
                 aria-label="Сообщение"
                 disabled={isComposerDisabled}
-                className="max-h-24 min-h-[42px] flex-1 resize-none overflow-y-auto bg-transparent py-2.5 pr-1 text-[15px] leading-5 text-ink placeholder:text-muted focus:outline-none"
+                className="max-h-[120px] min-h-[42px] flex-1 resize-none overscroll-contain bg-transparent py-2.5 pr-1 text-[15px] leading-5 text-ink placeholder:text-muted focus:outline-none"
               />
               <button
                 type="button"
@@ -830,16 +853,6 @@ export function ChatScreen({
         </div>
       )}
 
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(event) => void handleAttachmentChange(event)}
-      />
       <input
         ref={galleryInputRef}
         type="file"
@@ -893,6 +906,11 @@ export function ChatScreen({
           </p>
         </div>
       </BottomSheet>
+
+      <CameraCapture
+        ref={cameraRef}
+        onCapture={(file) => void processAttachmentFile(file)}
+      />
     </div>
   );
 }

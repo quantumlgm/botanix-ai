@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -9,8 +9,6 @@ import {
   Camera,
   CloudRain,
   Droplets,
-  Flashlight,
-  FlashlightOff,
   Gauge,
   ImagePlus,
   Leaf,
@@ -20,14 +18,14 @@ import {
   ShieldAlert,
   Sun,
   Thermometer,
-  X,
 } from "lucide-react";
 import { identifyPlant } from "../api/endpoints";
 import { getPlantIdentificationErrorMessage } from "../api/errors";
 import type { PlantIdentificationResult } from "../api/types";
+import { CameraCapture } from "../components/CameraCapture";
+import type { CameraCaptureHandle } from "../components/CameraCapture";
 import {
   SUPPORTED_IMAGE_ACCEPT,
-  captureImageFromVideo,
   getImageErrorMessage,
   prepareImageForUpload,
 } from "../utils/images";
@@ -37,63 +35,9 @@ import {
   type CareTipKey,
 } from "../utils/care";
 
-const CAMERA_ACCESS_TIMEOUT_MS = 10_000;
-
-type TelegramCameraAccess = {
-  checkCameraAccess?: () => boolean | Promise<boolean>;
-  requestCameraAccess?: (
-    callback?: (granted: boolean) => void
-  ) => void | boolean | Promise<boolean>;
-};
-
 interface IdentifyScreenProps {
   onOpenChat: (chatId: string, title?: string) => void;
   onBack?: () => void;
-}
-
-class CameraAccessTimeoutError extends Error {
-  constructor() {
-    super("Camera access request timed out");
-    this.name = "CameraAccessTimeoutError";
-  }
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      reject(new CameraAccessTimeoutError());
-    }, timeoutMs);
-
-    promise.then(
-      (value) => {
-        window.clearTimeout(timer);
-        resolve(value);
-      },
-      (error: unknown) => {
-        window.clearTimeout(timer);
-        reject(error);
-      }
-    );
-  });
-}
-
-function getCameraAccessErrorMessage(error: unknown): string {
-  if (error instanceof CameraAccessTimeoutError) {
-    return "Telegram не ответил на запрос доступа к камере. Попробуйте ещё раз.";
-  }
-
-  if (
-    error instanceof DOMException &&
-    (error.name === "NotAllowedError" || error.name === "SecurityError")
-  ) {
-    return "Разрешите доступ к камере в Telegram и попробуйте снова.";
-  }
-
-  if (error instanceof DOMException && error.name === "NotFoundError") {
-    return "Камера не найдена на этом устройстве.";
-  }
-
-  return "Не удалось открыть камеру. Выберите фото из галереи или разрешите доступ к камере.";
 }
 
 function CareTipIcon({
@@ -138,23 +82,12 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [result, setResult] = useState<PlantIdentificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [isTorchSupported, setIsTorchSupported] = useState(false);
-  const [torchOn, setTorchOn] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
   const [isPreparingImage, setIsPreparingImage] = useState(false);
-  const [isOpeningCamera, setIsOpeningCamera] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraRef = useRef<CameraCaptureHandle | null>(null);
   const previewUrlRef = useRef<string | null>(null);
-  const cameraRequestIdRef = useRef(0);
-  const cameraRequestInProgressRef = useRef(false);
   const imagePreparationIdRef = useRef(0);
-  const captureInProgressRef = useRef(false);
   const identifyAbortRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
 
@@ -172,54 +105,11 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
 
     return () => {
       isMountedRef.current = false;
-      cameraRequestIdRef.current += 1;
       imagePreparationIdRef.current += 1;
-      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
-      cameraStreamRef.current = null;
       identifyAbortRef.current?.abort();
       identifyAbortRef.current = null;
     };
   }, []);
-
-  useEffect(() => {
-    if (isCameraOpen && videoRef.current && cameraStream) {
-      videoRef.current.srcObject = cameraStream;
-    }
-  }, [cameraStream, isCameraOpen]);
-
-  const stopCameraStream = useCallback(() => {
-    cameraRequestIdRef.current += 1;
-    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
-    cameraStreamRef.current = null;
-    setCameraStream(null);
-    setIsTorchSupported(false);
-    setTorchOn(false);
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  }, []);
-
-  const handleCameraTrackEnded = useCallback(() => {
-    stopCameraStream();
-    setIsCameraOpen(false);
-    setCameraError("Камера перестала быть доступна. Попробуйте открыть её снова.");
-  }, [stopCameraStream]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== "hidden") return;
-      if (!cameraStreamRef.current) return;
-
-      stopCameraStream();
-      setIsCameraOpen(false);
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [stopCameraStream]);
 
   const applySelectedFile = (file: File) => {
     if (previewUrlRef.current) {
@@ -233,7 +123,6 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
     setQuestion("");
     setResult(null);
     setError(null);
-    setCameraError(null);
   };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -247,7 +136,6 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
     imagePreparationIdRef.current = requestId;
     setIsPreparingImage(true);
     setError(null);
-    setCameraError(null);
 
     try {
       const preparedFile = await prepareImageForUpload(file);
@@ -271,171 +159,6 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
         isMountedRef.current
       ) {
         setIsPreparingImage(false);
-      }
-    }
-  };
-
-  const requestCameraAccess = async (): Promise<boolean> => {
-    const webApp = window.Telegram?.WebApp as
-      | (NonNullable<typeof window.Telegram>["WebApp"] &
-          TelegramCameraAccess)
-      | undefined;
-
-    if (!webApp) {
-      return true;
-    }
-
-    if (webApp.checkCameraAccess && (await webApp.checkCameraAccess())) {
-      return true;
-    }
-
-    if (!webApp.requestCameraAccess) {
-      return true;
-    }
-
-    return new Promise<boolean>((resolve, reject) => {
-      const finish = (granted: boolean) => resolve(granted);
-
-      try {
-        const result = webApp.requestCameraAccess?.(finish);
-        if (result instanceof Promise) {
-          result.then(finish, reject);
-        } else if (typeof result === "boolean") {
-          finish(result);
-        }
-      } catch (requestError) {
-        reject(requestError);
-      }
-    });
-  };
-
-  const openCamera = async () => {
-    if (cameraRequestInProgressRef.current) {
-      return;
-    }
-
-    cameraRequestInProgressRef.current = true;
-    setIsOpeningCamera(true);
-    stopCameraStream();
-    const requestId = cameraRequestIdRef.current;
-    setCameraError(null);
-
-    try {
-      const granted = await withTimeout(
-        requestCameraAccess(),
-        CAMERA_ACCESS_TIMEOUT_MS
-      );
-
-      if (!granted) {
-        if (requestId === cameraRequestIdRef.current) {
-          setCameraError(
-            "Разрешите доступ к камере в Telegram и попробуйте снова."
-          );
-        }
-        return;
-      }
-
-      if (requestId !== cameraRequestIdRef.current || !isMountedRef.current) {
-        return;
-      }
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Camera API is unavailable");
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      });
-
-      if (requestId !== cameraRequestIdRef.current || !isMountedRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-
-      if (document.visibilityState === "hidden") {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-
-      const track = stream.getVideoTracks()[0];
-      const capabilities = track?.getCapabilities?.() as
-        | (MediaTrackCapabilities & { torch?: boolean })
-        | undefined;
-
-      track?.addEventListener("ended", handleCameraTrackEnded);
-      cameraStreamRef.current = stream;
-      setCameraStream(stream);
-      setIsTorchSupported(Boolean(capabilities?.torch));
-      setIsCameraOpen(true);
-    } catch (err: unknown) {
-      if (requestId === cameraRequestIdRef.current && isMountedRef.current) {
-        setCameraError(getCameraAccessErrorMessage(err));
-      }
-    } finally {
-      cameraRequestInProgressRef.current = false;
-      if (isMountedRef.current) {
-        setIsOpeningCamera(false);
-      }
-    }
-  };
-
-  const closeCamera = () => {
-    stopCameraStream();
-    setIsCameraOpen(false);
-  };
-
-  const toggleTorch = async () => {
-    const track = cameraStreamRef.current?.getVideoTracks()[0];
-    if (!track || !isTorchSupported) {
-      return;
-    }
-
-    const nextTorchState = !torchOn;
-    try {
-      await track.applyConstraints({
-        advanced: [{ torch: nextTorchState } as MediaTrackConstraintSet],
-      });
-      if (cameraStreamRef.current?.getVideoTracks()[0] === track) {
-        setTorchOn(nextTorchState);
-      }
-      setCameraError(null);
-    } catch {
-      setCameraError("Не удалось переключить фонарик на этой камере.");
-    }
-  };
-
-  const capturePhoto = async () => {
-    const video = videoRef.current;
-    if (!video || captureInProgressRef.current) {
-      return;
-    }
-
-    if (!video.videoWidth || !video.videoHeight) {
-      setCameraError("Камера ещё не готова. Попробуйте ещё раз.");
-      return;
-    }
-
-    captureInProgressRef.current = true;
-    setIsCapturing(true);
-    setCameraError(null);
-
-    try {
-      const file = await captureImageFromVideo(video);
-      if (!isMountedRef.current) {
-        return;
-      }
-
-      closeCamera();
-      applySelectedFile(file);
-    } catch (err: unknown) {
-      if (isMountedRef.current) {
-        setCameraError(getImageErrorMessage(err));
-      }
-    } finally {
-      captureInProgressRef.current = false;
-      if (isMountedRef.current) {
-        setIsCapturing(false);
       }
     }
   };
@@ -557,16 +280,12 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
             <div className="mt-4 flex flex-col gap-2.5">
               <button
                 type="button"
-                onClick={() => void openCamera()}
-                disabled={isOpeningCamera || isPreparingImage}
+                onClick={() => cameraRef.current?.open()}
+                disabled={isPreparingImage}
                 className="flex h-[54px] w-full items-center justify-center gap-2.5 rounded-full bg-primary text-[15px] font-semibold text-primary-ink shadow-float transition duration-200 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isOpeningCamera ? (
-                  <Loader2 className="h-[19px] w-[19px] animate-spin" strokeWidth={1.9} />
-                ) : (
-                  <Camera className="h-[19px] w-[19px]" strokeWidth={1.9} />
-                )}
-                {isOpeningCamera ? "Открываем камеру…" : "Сделать фото"}
+                <Camera className="h-[19px] w-[19px]" strokeWidth={1.9} />
+                Сделать фото
               </button>
 
               <button
@@ -577,7 +296,7 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
                     fileInputRef.current.click();
                   }
                 }}
-                disabled={isPreparingImage || isOpeningCamera}
+                disabled={isPreparingImage}
                 className="flex h-[46px] w-full items-center justify-center gap-2.5 rounded-full border border-line bg-surface/70 text-[13px] font-medium text-ink transition duration-200 active:scale-[0.99] active:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isPreparingImage ? (
@@ -597,16 +316,6 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
             <p className="mt-3 text-center text-[11px] text-muted">
               JPG, PNG или WebP · до 5 МБ
             </p>
-
-            {cameraError && (
-              <p
-                role="status"
-                className="mt-3 flex items-start justify-center gap-2 text-center text-[11.5px] leading-relaxed text-sand"
-              >
-                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.7} />
-                {cameraError}
-              </p>
-            )}
           </div>
         ) : (
           <div className="animate-fade">
@@ -806,97 +515,7 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
         </div>
       )}
 
-      {isCameraOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Камера"
-          className="fixed inset-0 z-50 overflow-hidden overscroll-contain bg-black"
-        >
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/55"
-          />
-
-          <div
-            className="relative z-10 flex h-full flex-col"
-            style={{
-              paddingTop:
-                "max(0.75rem, env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px))",
-              paddingBottom:
-                "max(1.75rem, env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px))",
-            }}
-          >
-            <div className="flex items-center justify-between px-4 py-1">
-              <button
-                type="button"
-                onClick={closeCamera}
-                aria-label="Закрыть камеру"
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md transition active:scale-95"
-              >
-                <X className="h-5 w-5" strokeWidth={1.7} />
-              </button>
-
-              {isTorchSupported && (
-                <button
-                  type="button"
-                  onClick={() => void toggleTorch()}
-                  aria-label={torchOn ? "Выключить фонарик" : "Включить фонарик"}
-                  aria-pressed={torchOn}
-                  className={`flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-md transition active:scale-95 ${
-                    torchOn
-                      ? "border-white bg-white text-black"
-                      : "border-white/20 bg-white/10 text-white"
-                  }`}
-                >
-                  {torchOn ? (
-                    <FlashlightOff className="h-5 w-5" strokeWidth={1.7} />
-                  ) : (
-                    <Flashlight className="h-5 w-5" strokeWidth={1.7} />
-                  )}
-                </button>
-              )}
-            </div>
-
-            <div className="min-h-0 flex-1" />
-
-            {cameraError && (
-              <p
-                role="status"
-                className="relative z-10 mx-5 mb-4 rounded-2xl border border-white/10 bg-black/55 p-3 text-center text-[12px] leading-relaxed text-white backdrop-blur-md"
-              >
-                {cameraError}
-              </p>
-            )}
-
-            <div className="relative z-10 flex flex-col items-center px-6">
-              <div className="flex h-[78px] w-[78px] items-center justify-center rounded-full border border-white/40">
-                <button
-                  type="button"
-                  onClick={() => void capturePhoto()}
-                  disabled={isCapturing}
-                  aria-label="Сделать снимок"
-                  aria-busy={isCapturing}
-                  className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-white text-black shadow-[0_0_36px_rgba(255,255,255,0.25)] transition active:scale-95 disabled:opacity-70"
-                >
-                  {isCapturing ? (
-                    <Loader2 className="h-6 w-6 animate-spin" strokeWidth={1.7} />
-                  ) : (
-                    <Camera className="h-6 w-6" strokeWidth={1.7} />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <CameraCapture ref={cameraRef} onCapture={applySelectedFile} />
     </div>
   );
 }
