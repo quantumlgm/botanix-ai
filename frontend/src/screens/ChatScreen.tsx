@@ -814,7 +814,7 @@ export function ChatScreen({
               </div>
             )}
 
-            <div className="flex items-end gap-1 rounded-full border border-line bg-surface py-1.5 pr-1.5 pl-1.5 shadow-card transition-colors focus-within:border-accent/45">
+            <div className="flex items-center gap-1 rounded-full border border-line bg-surface py-1.5 pr-1.5 pl-1.5 shadow-card transition-colors focus-within:border-accent/45">
               <button
                 type="button"
                 onClick={() => setIsAttachmentSheetOpen(true)}
