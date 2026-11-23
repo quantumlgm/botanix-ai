@@ -20,6 +20,7 @@ dependencies = [
     "pillow>=13.0.0",
     "psycopg>=3.3.6",
     "pydantic>=2.4.1,<2.14",
+    "pydantic-core>=2.46.5",
     "pydantic-settings>=2.16.1",
     "python-multipart>=0.0.32",
     "ruff>=0.17.3",
