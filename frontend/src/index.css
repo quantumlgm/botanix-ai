@@ -172,6 +172,18 @@
     );
   }
 
+  .sheet-safe-bottom {
+    padding-bottom: max(
+      1rem,
+      env(safe-area-inset-bottom, 0px),
+      var(--tg-safe-area-inset-bottom, 0px)
+    );
+  }
+
+  .sheet-backdrop {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+
   .skeleton {
     position: relative;
     overflow: hidden;

@@ -1,15 +1,32 @@
 from collections.abc import Sequence
+from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.chat.converstation import (
+    send_message_flow,
+    send_message_stream_flow,
+)
 from app.api.chat.models import Chat, ChatMessage
 from app.api.chat.schemas import (
     BotReplyResponse,
     ChatAskRequest,
     ChatCreateResponse,
+    MediaUploadResponse,
     MessageHistoryResponse,
     UserChatResponse,
     UserMessageRequest,
@@ -23,13 +40,11 @@ from app.api.chat.service import (
 )
 from app.api.users.models import User
 from app.api.users.service import get_current_user
-from app.core.enums import RateLimit, StreamMimeType
-from app.services.converstation import (
-    send_message_flow,
-    send_message_stream_flow,
-)
+from app.core.enums import ImageMimeType, RateLimit, StreamMimeType
+from app.services.images.service import image_validate
 from app.services.limiter import limiter
 from app.services.postgres import get_session
+from app.services.s3 import build_image_url, upload_image
 
 router = APIRouter(prefix="/chats", tags=["Chats"])
 
@@ -47,15 +62,20 @@ async def create_chat_handle(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ChatCreateResponse:
-    title = payload.message.strip()[:30]
+    title = payload.message.strip()[:30] or "Фото растения"
 
-    created_chat = await create_chat(session, current_user.id, title)
+    created_chat = await create_chat(
+        session=session,
+        user_id=current_user.id,
+        title=title,
+    )
 
     ai_reply = await send_message_flow(
         session=session,
         chat_id=created_chat.id,
         user_id=current_user.id,
         message=payload.message,
+        image_urls=payload.image_urls,
     )
 
     return ChatCreateResponse(chat_id=created_chat.id, reply=ai_reply.reply)
@@ -80,11 +100,17 @@ async def send_message_handle(
         chat_id=chat_id,
         user_id=current_user.id,
         message=payload.message,
+        image_urls=payload.image_urls,
     )
     return BotReplyResponse(reply=ai_reply.reply)
 
 
-@router.post("/{chat_id}/stream", summary="Stream chat message reply")
+@router.post(
+    "/{chat_id}/stream",
+    summary="Stream chat message reply",
+    response_model=None,
+    status_code=status.HTTP_201_CREATED,
+)
 @limiter.limit(RateLimit.MEDIUM)
 async def send_message_stream_handle(
     request: Request,
@@ -102,6 +128,7 @@ async def send_message_stream_handle(
         chat_id=chat_id,
         plant_context=chat.plant_context,
         message=payload.message,
+        image_urls=payload.image_urls,
     )
 
     return StreamingResponse(
@@ -112,6 +139,36 @@ async def send_message_stream_handle(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post(
+    "/upload",
+    response_model=MediaUploadResponse,
+    summary="Upload an image in chat",
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit(RateLimit.MEDIUM)
+async def upload_chat_image_handle(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+) -> MediaUploadResponse:
+    file_bytes = await image_validate(file)
+    extension = Path(file.filename or "").suffix.lower().lstrip(".") or "jpg"
+
+    try:
+        key = await upload_image(
+            file_bytes=file_bytes,
+            extension=extension,
+            content_type=file.content_type or ImageMimeType.JPEG,
+        )
+    except (BotoCoreError, ClientError):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Сервис хранения файлов временно недоступен",
+        )
+
+    return MediaUploadResponse(image_url=build_image_url(key))
 
 
 @router.get(

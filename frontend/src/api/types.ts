@@ -16,6 +16,7 @@ export interface ChatItem {
 export interface ChatMessageResponse {
   role: "user" | "assistant" | "system";
   content: string;
+  image_urls?: string[];
 }
 
 export interface ChatCreateResponse {
@@ -23,10 +24,15 @@ export interface ChatCreateResponse {
   reply: string;
 }
 
+export interface ChatImageUploadResponse {
+  image_url: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  image_urls: string[];
 }
 
 export interface PlantCareInfo {
@@ -46,7 +52,7 @@ export interface PlantIdentificationResult {
   family_name: string;
   common_names: string[];
   confidence: number;
-  data: PlantCareInfo | null;
+  data?: PlantCareInfo | null;
   reply: string;
 }
 
@@ -83,7 +89,12 @@ export function isChatMessageResponse(
     (value.role === "user" ||
       value.role === "assistant" ||
       value.role === "system") &&
-    typeof value.content === "string"
+    typeof value.content === "string" &&
+    (value.image_urls === undefined ||
+      (Array.isArray(value.image_urls) &&
+        value.image_urls.every(
+          (url) => typeof url === "string" && url.length > 0
+        )))
   );
 }
 
@@ -94,6 +105,16 @@ export function isChatCreateResponse(
     isRecord(value) &&
     typeof value.chat_id === "string" &&
     typeof value.reply === "string"
+  );
+}
+
+export function isChatImageUploadResponse(
+  value: unknown
+): value is ChatImageUploadResponse {
+  return (
+    isRecord(value) &&
+    typeof value.image_url === "string" &&
+    value.image_url.length > 0
   );
 }
 
@@ -126,7 +147,9 @@ export function isPlantIdentificationResult(
     value.common_names.every((name) => typeof name === "string") &&
     typeof value.confidence === "number" &&
     Number.isFinite(value.confidence) &&
-    (value.data === null || isPlantCareInfo(value.data)) &&
+    (value.data === undefined ||
+      value.data === null ||
+      isPlantCareInfo(value.data)) &&
     typeof value.reply === "string"
   );
 }

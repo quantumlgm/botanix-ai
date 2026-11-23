@@ -11,6 +11,7 @@ import {
 } from "./errors";
 import {
   isChatCreateResponse,
+  isChatImageUploadResponse,
   isChatItem,
   isChatMessageResponse,
   isPlantIdentificationResult,
@@ -28,8 +29,13 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
+export interface CreateChatOptions extends RequestOptions {
+  imageUrls?: string[];
+}
+
 export interface StreamChatOptions extends RequestOptions {
   idleTimeoutMs?: number;
+  imageUrls?: string[];
 }
 
 export interface IdentifyPlantOptions extends RequestOptions {
@@ -113,11 +119,11 @@ export async function deleteChat(
 
 export async function createChat(
   message: string,
-  options: RequestOptions = {}
+  options: CreateChatOptions = {}
 ): Promise<ChatCreateResponse> {
   const response = await apiClient.post<unknown>(
     "/chats",
-    { message },
+    { message, image_urls: options.imageUrls ?? [] },
     {
       signal: options.signal,
       timeout: CHAT_CREATE_TIMEOUT_MS,
@@ -127,6 +133,23 @@ export async function createChat(
     throw new Error("Server returned an invalid chat creation response");
   }
   return response.data;
+}
+
+export async function uploadChatImage(
+  file: File,
+  options: RequestOptions = {}
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await apiClient.post<unknown>("/chats/upload", formData, {
+    signal: options.signal,
+    timeout: UPLOAD_TIMEOUT_MS,
+  });
+  if (!isChatImageUploadResponse(response.data)) {
+    throw new Error("Server returned an invalid image upload response");
+  }
+  return response.data.image_url;
 }
 
 export async function getChatMessages(
@@ -152,7 +175,11 @@ export async function streamChatMessage(
   onChunk: (chunk: string) => void,
   options: StreamChatOptions = {}
 ): Promise<void> {
-  const { signal, idleTimeoutMs = SSE_IDLE_TIMEOUT_MS } = options;
+  const {
+    signal,
+    idleTimeoutMs = SSE_IDLE_TIMEOUT_MS,
+    imageUrls = [],
+  } = options;
   const initData = window.Telegram?.WebApp?.initData || "";
   const controller = new AbortController();
   let idleTimedOut = false;
@@ -202,7 +229,7 @@ export async function streamChatMessage(
           "Content-Type": "application/json",
           "X-Telegram-Init-Data": initData,
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, image_urls: imageUrls }),
         signal: controller.signal,
       }
     );

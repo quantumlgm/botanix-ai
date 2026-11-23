@@ -39,7 +39,11 @@ async def get_user_chat(
 
 
 async def get_user_chats(session: AsyncSession, user_id: UUID) -> Sequence[Chat]:
-    query = select(Chat).where(Chat.user_id == user_id).order_by(Chat.created_at.desc())
+    query = (
+        select(Chat)
+        .where(Chat.user_id == user_id)
+        .order_by(Chat.updated_at.desc())
+    )
     result = await session.execute(query)
     return result.scalars().all()
 

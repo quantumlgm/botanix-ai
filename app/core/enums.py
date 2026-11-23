@@ -1,4 +1,5 @@
-from enum import StrEnum
+from enum import Enum, StrEnum
+from typing import Final
 
 
 class ImageMimeType(StrEnum):
@@ -22,3 +23,8 @@ class RateLimit(StrEnum):
     MEDIUM = "10/minute"
     HIGH = "60/minute"
     BURST = "120/minute"
+
+
+class LLMValues:
+    TEMPERATURE: Final = 0.3
+    FREQUENCY_PENALTY: Final = 0.2
