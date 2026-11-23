@@ -441,20 +441,16 @@ export function IdentifyScreen({ onOpenChat, onBack }: IdentifyScreenProps) {
 
                 {careTips.length > 0 && (
                   <div
-                    className={`mt-5 grid gap-2 ${
-                      careTips.length === 1
-                        ? "grid-cols-1"
-                        : careTips.length === 2
-                          ? "grid-cols-2"
-                          : careTips.length === 3
-                            ? "grid-cols-3"
-                            : "grid-cols-2"
-                    }`}
+                    role="list"
+                    aria-label="Условия содержания растения"
+                    tabIndex={0}
+                    className="-mx-6 mt-5 flex snap-x snap-mandatory gap-2 overflow-x-auto px-6 pb-1 [overscroll-behavior-x:contain] [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:outline-none [&::-webkit-scrollbar]:hidden"
                   >
                     {careTips.map((tip) => (
                       <div
                         key={tip.key}
-                        className={`min-w-0 rounded-2xl px-3 py-3 ${
+                        role="listitem"
+                        className={`w-[124px] shrink-0 snap-start rounded-2xl px-3 py-3 ${
                           tip.tone === "danger"
                             ? "bg-danger-soft"
                             : "bg-surface-soft"

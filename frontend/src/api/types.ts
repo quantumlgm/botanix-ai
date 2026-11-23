@@ -52,7 +52,7 @@ export interface PlantIdentificationResult {
   family_name: string;
   common_names: string[];
   confidence: number;
-  data: PlantCareInfo | null;
+  data?: PlantCareInfo | null;
   reply: string;
 }
 
@@ -147,7 +147,9 @@ export function isPlantIdentificationResult(
     value.common_names.every((name) => typeof name === "string") &&
     typeof value.confidence === "number" &&
     Number.isFinite(value.confidence) &&
-    (value.data === null || isPlantCareInfo(value.data)) &&
+    (value.data === undefined ||
+      value.data === null ||
+      isPlantCareInfo(value.data)) &&
     typeof value.reply === "string"
   );
 }
