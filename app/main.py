@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 import os
 
 import uvicorn
@@ -14,7 +15,16 @@ from app.api.users.router import router as user_router
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.services.limiter import limiter
+from app.services.s3 import get_s3_client
 from bot.main import main as bot_main
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with get_s3_client() as s3_client:
+        await s3_client.head_bucket(Bucket=settings.S3_BUCKET_NAME)
+    yield
+
 
 app = FastAPI()
 app.state.limiter = limiter
