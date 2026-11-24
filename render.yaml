@@ -1,0 +1,85 @@
+# Exported from Render on 2026-11-24T15:46:35Z
+version: "1"
+projects:
+    services:
+    - type: web
+      name: botanix-ai
+      runtime: python
+      repo: https://github.com/quantumlgm/botanix-ai
+      branch: main
+      plan: free
+      envVars:
+      - key: POSTGRES_PORT
+        FromDatabase:
+          name: botanix-db
+          property: port 
+      - key: POSTGRES_HOST
+        FromDatabase:
+          name: botanix-db
+          property: host 
+      - key: POSTGRES_DB
+        FromDatabase:
+          name: botanix-db
+          property: database 
+      - key: POSTGRES_PASSWORD
+        FromDatabase:
+          name: botanix-db
+          property: password
+      - key: POSTGRES_USER
+        FromDatabase:
+          name: botanix-db
+          property: user        
+
+      - key: DEBUG
+        value: False
+
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: WEB_APP_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: BOT_INTERNAL_SECRET
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: PROVIDER_API_KEY
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: IDENTIFIER_API_KEY
+        sync: false
+      region: oregon
+      buildCommand: uv sync --no-install-project && uv run alembic upgrade head
+      startCommand: python -m app.main
+      autoDeployTrigger: commit
+
+    - type: web
+      name: botanix-frontend
+      runtime: static
+      repo: https://github.com/quantumlgm/botanix-ai
+      branch: main
+      envVars:
+      - key: VITE_API_URL
+        sync: false
+      buildCommand: pnpm install && pnpm build
+      staticPublishPath: dist
+      routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+      autoDeployTrigger: commit
+      rootDir: frontend/
+
+    databases:
+    - name: botanix-db
+      databaseName: botanix_postgres
+      user: botanix
+      plan: free
+      region: oregon
+      ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
+      postgresMajorVersion: "18"
