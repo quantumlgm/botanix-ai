@@ -4,18 +4,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppSettings(BaseSettings):
+    IDENTIFIER_API_KEY: SecretStr
+    PROVIDER_API_KEY: SecretStr
     IDENTIFIER_API_URL: str = "https://my-api.plantnet.org/v2/identify/all"
-    IDENTIFIER_API_KEY: SecretStr 
-    PROVIDER_API_KEY: str
     PROVIDER_URL: str = "https://openrouter.ai/api/v1"
     MODEL_NAME: str = "baidu/ernie-5.5-flash-preview:free"
     MULTIMODAL_MODEL_NAME: str = "inclusionai/ling-3.2-flash:free"
 
-    POSTGRES_USER: str
-    POSTGRES_DB: str
+    POSTGRES_USER: str ="botanix"
+    POSTGRES_DB: str ="botanix-postgres"
     POSTGRES_PASSWORD: SecretStr
-    POSTGRES_HOST: str
-    POSTGRES_PORT: int
+    POSTGRES_HOST: str = "127.0.0.1"
+    POSTGRES_PORT: int = 5433
 
     BOT_TOKEN: SecretStr
     BOT_INTERNAL_SECRET: SecretStr
@@ -32,6 +32,10 @@ class AppSettings(BaseSettings):
     S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
     S3_PUBLIC_BASE_URL: str = ""
     S3_REGION: str = "ru-central1"
+
+    BACKEND_URL: str = "http://localhost:8000"
+    WEB_APP_URL: str = "http://localhost:5173"
+
 
     def _build_pg_dsn(self, scheme: str) -> str:
         return str(

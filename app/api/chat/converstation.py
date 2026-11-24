@@ -25,7 +25,7 @@ from app.services.s3 import build_image_url
 
 client = AsyncOpenAI(
     base_url=settings.PROVIDER_URL,
-    api_key=settings.PROVIDER_API_KEY,
+    api_key=settings.PROVIDER_API_KEY.get_secret_value(),
     default_headers={
         "HTTP-Referer": "https://github.com/botanix-ai",
         "X-Title": "Botanix AI",
