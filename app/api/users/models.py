@@ -13,4 +13,8 @@ class User(Base, UuidId, Timestamp):
     username: Mapped[str | None]
     first_name: Mapped[str]
 
-    chats: Mapped[list["Chat"]] = relationship(back_populates="user")
+    chats: Mapped[list["Chat"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import create_engine, func
+from sqlalchemy import DateTime, create_engine, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -14,15 +14,20 @@ class Base(DeclarativeBase):
 
 
 class Timestamp:
-    created_at: Mapped[datetime.datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        onupdate=func.now(), server_default=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
 
 class UuidId:
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True, 
+        default=uuid.uuid4, 
+        server_default=text("gen_random_uuid()"),
     )
 
 
