@@ -1,8 +1,9 @@
 from collections.abc import Sequence
-from uuid import UUID
+
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.chat.models import Chat, ChatMessage

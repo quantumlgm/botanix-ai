@@ -1,16 +1,17 @@
 import datetime
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.core.enums import Roles
+from app.core.enums import FieldLength, Roles
 
 MAX_MESSAGE_IMAGES = 4
-
+ImageUrl = Annotated[str, Field(max_length=FieldLength.URL)]
 
 class UserMessageRequest(BaseModel):
-    message: str = Field(default="", max_length=700)
-    image_urls: list[str] = Field(default_factory=list, max_length=MAX_MESSAGE_IMAGES)
+    message: str = Field(default="", max_length=FieldLength.MESSAGE)
+    image_urls: list[ImageUrl] = Field(default_factory=list, max_length=MAX_MESSAGE_IMAGES)
 
     @model_validator(mode="after")
     def validate_content(self) -> "UserMessageRequest":
@@ -20,8 +21,8 @@ class UserMessageRequest(BaseModel):
 
 
 class ChatAskRequest(BaseModel):
-    message: str = Field(default="", max_length=700)
-    image_urls: list[str] = Field(default_factory=list, max_length=MAX_MESSAGE_IMAGES)
+    message: str = Field(default="", max_length=FieldLength.MESSAGE)
+    image_urls: list[ImageUrl] = Field(default_factory=list, max_length=MAX_MESSAGE_IMAGES)
     plant_context: str | None = Field(default=None)
 
     @model_validator(mode="after")

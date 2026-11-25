@@ -2,7 +2,7 @@ import datetime
 import uuid
 
 from sqlalchemy import DateTime, create_engine, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -23,7 +23,7 @@ class Timestamp:
 
 
 class UuidId:
-    id: Mapped[UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True, 
         default=uuid.uuid4, 

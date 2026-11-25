@@ -6,7 +6,7 @@ from app.api.identify.schemas import PlantIdentifyResponse
 from app.api.identify.service import identify_service
 from app.api.users.models import User
 from app.api.users.service import get_current_user
-from app.core.enums import RateLimit
+from app.core.enums import FieldLength, RateLimit
 from app.api.chat.converstation import send_message_flow
 from app.services.images.service import image_validate
 from app.services.limiter import limiter
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/plants", tags=["Plants"])
 @limiter.limit(RateLimit.LOW)
 async def identify_handle(
     request: Request,
-    question: str | None = Form(default=None),
+    question: str | None = Form(default=None, max_length=FieldLength.MESSAGE),
     current_user: User = Depends(get_current_user),
     image: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),

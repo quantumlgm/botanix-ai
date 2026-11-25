@@ -1,4 +1,4 @@
-from enum import Enum, StrEnum
+from enum import Enum, IntEnum, StrEnum
 from typing import Final
 
 
@@ -28,3 +28,10 @@ class RateLimit(StrEnum):
 class LLMValues:
     TEMPERATURE: Final = 0.3
     FREQUENCY_PENALTY: Final = 0.2
+
+
+class FieldLength(IntEnum):
+    SHORT_TEXT = 100
+    STANDARD_TEXT = 255 
+    MESSAGE = 700   
+    URL = 2048 
