@@ -15,6 +15,7 @@ from bot.keyboards.identify import continue_in_app_keyboard
 
 router = Router(name="identify")
 
+
 processing_users: set[int] = set()
 warning_cooldowns: dict[tuple[int, int], float] = {}
 WARNING_COOLDOWN_SECONDS = 5

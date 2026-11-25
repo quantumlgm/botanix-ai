@@ -54,7 +54,7 @@ async def get_current_user(
     ] = None,
 ) -> User:
     if x_bot_secret is not None:
-        if not secrets.compare_digest(x_bot_secret, settings.BOT_INTERNAL_SECRET):
+        if not secrets.compare_digest(x_bot_secret, settings.BOT_INTERNAL_SECRET.get_secret_value()):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid bot secret",

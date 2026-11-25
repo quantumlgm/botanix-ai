@@ -23,7 +23,7 @@ def _reject_init_data(detail: str) -> HTTPException:
 
 
 def validate_init_data(
-    init_data: str, bot_token: str = settings.BOT_TOKEN
+    init_data: str, bot_token: str = settings.BOT_TOKEN.get_secret_value()
 ) -> TelegramUserPayload:
     if settings.DEBUG and init_data == "dev_mock":
         return TelegramUserPayload(
