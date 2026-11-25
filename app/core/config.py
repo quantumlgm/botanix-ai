@@ -36,6 +36,7 @@ class AppSettings(BaseSettings):
     BACKEND_URL: str = "http://localhost:8000"
     WEB_APP_URL: str = "http://localhost:5173"
 
+    RATE_LIMIT_STORAGE_URI: str = "memory://"
 
     def _build_pg_dsn(self, scheme: str) -> str:
         return str(

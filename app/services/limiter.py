@@ -29,4 +29,5 @@ def get_rate_limit_key(request: Request) -> str:
 limiter = Limiter(
     key_func=get_remote_address,
     strategy="moving-window",
+    storage_uri=settings.RATE_LIMIT_STORAGE_URI
 )
