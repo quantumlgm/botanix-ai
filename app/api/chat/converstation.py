@@ -5,8 +5,7 @@ from dataclasses import dataclass
 from typing import cast
 from uuid import UUID
 
-import httpx
-from openai import AsyncOpenAI, OpenAIError
+from openai import AsyncOpenAI, OpenAIError, Timeout
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import ValidationError
 from sqlalchemy import func, update
@@ -28,7 +27,7 @@ from app.services.s3 import build_image_url
 client = AsyncOpenAI(
     base_url=settings.PROVIDER_URL,
     api_key=settings.PROVIDER_API_KEY.get_secret_value(),
-    timeout=httpx.Timeout(
+    timeout=Timeout(
         settings.LLM_TIMEOUT_SECONDS,
         connect=settings.LLM_CONNECT_TIMEOUT_SECONDS,
     ),
@@ -38,6 +37,7 @@ client = AsyncOpenAI(
         "X-Title": "Botanix AI",
     },
 )
+
 
 LLM_HISTORY_LIMIT = 10
 IMAGE_HISTORY_WINDOW = 3
