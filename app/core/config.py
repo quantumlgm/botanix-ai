@@ -1,4 +1,4 @@
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_core import Url
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -10,6 +10,12 @@ class AppSettings(BaseSettings):
     PROVIDER_URL: str = "https://openrouter.ai/api/v1"
     MODEL_NAME: str = "baidu/ernie-5.5-flash-preview:free"
     MULTIMODAL_MODEL_NAME: str = "inclusionai/ling-3.2-flash:free"
+
+    LLM_TIMEOUT_SECONDS: float = Field(default=60.0, gt=0, le=300)
+    LLM_CONNECT_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0, le=60)
+    LLM_MAX_RETRIES: int = Field(default=1, ge=0, le=5)
+    LLM_MAX_TOKENS: int = Field(default=2048, ge=256, le=8192)
+    SSE_HEARTBEAT_SECONDS: float = Field(default=15.0, gt=0, le=60)
 
     POSTGRES_USER: str ="botanix"
     POSTGRES_DB: str ="botanix-postgres"

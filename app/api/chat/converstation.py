@@ -1,9 +1,11 @@
+import asyncio
 import json
 from collections.abc import AsyncGenerator, Sequence
 from dataclasses import dataclass
 from typing import cast
 from uuid import UUID
 
+import httpx
 from openai import AsyncOpenAI, OpenAIError
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import ValidationError
@@ -26,6 +28,11 @@ from app.services.s3 import build_image_url
 client = AsyncOpenAI(
     base_url=settings.PROVIDER_URL,
     api_key=settings.PROVIDER_API_KEY.get_secret_value(),
+    timeout=httpx.Timeout(
+        settings.LLM_TIMEOUT_SECONDS,
+        connect=settings.LLM_CONNECT_TIMEOUT_SECONDS,
+    ),
+    max_retries=settings.LLM_MAX_RETRIES,
     default_headers={
         "HTTP-Referer": "https://github.com/botanix-ai",
         "X-Title": "Botanix AI",
@@ -178,6 +185,7 @@ async def generate_expert_reply(
                 messages=build_llm_messages(history, structured_prompt),
                 temperature=LLMValues.TEMPERATURE,
                 frequency_penalty=LLMValues.FREQUENCY_PENALTY,
+                max_tokens=settings.LLM_MAX_TOKENS,
                 response_format=PlantAnalysisResponse,
             )
             parsed = response.choices[0].message.parsed if response.choices else None
@@ -191,6 +199,7 @@ async def generate_expert_reply(
         messages=build_llm_messages(history, system_prompt),
         temperature=LLMValues.TEMPERATURE,
         frequency_penalty=LLMValues.FREQUENCY_PENALTY,
+        max_tokens=settings.LLM_MAX_TOKENS,
     )
     content = response.choices[0].message.content if response.choices else None
     return ExpertReply(reply=content or FALLBACK_REPLY, data=None)
@@ -198,22 +207,53 @@ async def generate_expert_reply(
 
 async def stream_expert_reply(
     history: Sequence[ChatMessage], plant_context: str | None = None
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[str | None, None]:
     has_images = has_recent_images(history)
     system_prompt = build_system_prompt(plant_context, has_images)
     model_name = select_model_name(structured=False, has_images=has_images)
 
-    response_stream = await client.chat.completions.create(
-        model=model_name,
-        messages=build_llm_messages(history, system_prompt),
-        temperature=LLMValues.TEMPERATURE,
-        stream=True,
-        frequency_penalty=LLMValues.FREQUENCY_PENALTY,
-    )
+    queue = asyncio.Queue()
+    done_marker = object()
 
-    async for chunk in response_stream:
-        if chunk.choices and chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content
+    async def _producer() -> None:
+        try:
+            response_stream = await client.chat.completions.create(
+                model=model_name,
+                messages=build_llm_messages(history, system_prompt),
+                temperature=LLMValues.TEMPERATURE,
+                stream=True,
+                frequency_penalty=LLMValues.FREQUENCY_PENALTY,
+                max_tokens=settings.LLM_MAX_TOKENS,
+            )
+            async for chunk in response_stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    await queue.put(chunk.choices[0].delta.content)
+        except Exception as exc:
+            await queue.put(exc)
+        finally:
+            await queue.put(done_marker)
+
+    producer_task = asyncio.create_task(_producer())
+
+    try:
+        while True:
+            try:
+                item = await asyncio.wait_for(
+                    queue.get(), timeout=settings.SSE_HEARTBEAT_SECONDS
+                )
+            except TimeoutError:
+                yield None
+                continue
+
+            if item is done_marker:
+                break
+            if isinstance(item, Exception):
+                raise item
+            yield cast(str, item)
+    finally:
+        if not producer_task.done():
+            producer_task.cancel()
+        await asyncio.gather(producer_task, return_exceptions=True)\
 
 
 async def send_message_stream_flow(
@@ -241,6 +281,9 @@ async def send_message_stream_flow(
         async for token in stream_expert_reply(
             history=history, plant_context=plant_context
         ):
+            if token is None:
+                yield ": keepalive\n\n"
+                continue
             full_response_parts.append(token)
             yield f"data: {json.dumps(token, ensure_ascii=False)}\n\n"
 
