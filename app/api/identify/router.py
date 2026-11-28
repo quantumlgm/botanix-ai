@@ -8,6 +8,7 @@ from app.api.users.models import User
 from app.api.users.service import get_current_user
 from app.core.enums import FieldLength, RateLimit
 from app.api.chat.converstation import send_message_flow
+from app.core.functions import check_content_length
 from app.services.images.service import image_validate
 from app.services.limiter import limiter
 from app.services.postgres import get_session
@@ -20,7 +21,8 @@ router = APIRouter(prefix="/plants", tags=["Plants"])
     "/identify",
     response_model=PlantIdentifyResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Identify your plant",
+    summary="Identify your plant",    
+    dependencies=[Depends(check_content_length)]
 )
 @limiter.limit(RateLimit.LOW)
 async def identify_handle(

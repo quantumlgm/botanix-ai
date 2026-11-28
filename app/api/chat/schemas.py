@@ -1,13 +1,13 @@
 import datetime
 from typing import Annotated
 from uuid import UUID
-
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 from app.core.enums import FieldLength, Roles
+
 
 MAX_MESSAGE_IMAGES = 4
 ImageUrl = Annotated[str, Field(max_length=FieldLength.URL)]
+
 
 class UserMessageRequest(BaseModel):
     message: str = Field(default="", max_length=FieldLength.MESSAGE)

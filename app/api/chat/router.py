@@ -41,6 +41,7 @@ from app.api.chat.service import (
 from app.api.users.models import User
 from app.api.users.service import get_current_user
 from app.core.enums import ImageMimeType, RateLimit, StreamMimeType
+from app.core.functions import check_content_length
 from app.services.images.service import image_validate
 from app.services.limiter import limiter
 from app.services.postgres import get_session
@@ -146,6 +147,7 @@ async def send_message_stream_handle(
     response_model=MediaUploadResponse,
     summary="Upload an image in chat",
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(check_content_length)]
 )
 @limiter.limit(RateLimit.MEDIUM)
 async def upload_chat_image_handle(
